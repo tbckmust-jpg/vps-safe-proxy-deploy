@@ -27,9 +27,11 @@ setup() {
 }
 
 @test "PUBLIC_HOST auto-detect failure gives a clear error" {
-  run env -i PATH="$PATH" MOCK_PUBLIC_HOST_FAIL=1 bash "$REPO_ROOT/install.sh" reality --dry-run --test-mode
+  run bash -c "env -i PATH=\"$PATH\" MOCK_PUBLIC_HOST_FAIL=1 bash \"$REPO_ROOT/install.sh\" reality --dry-run --test-mode 2>&1"
   [ "$status" -ne 0 ]
+  [[ "$output" == *"failed to auto-detect PUBLIC_HOST"* ]]
   [[ "$output" == *"PUBLIC_HOST is required"* ]]
+  [[ "$output" == *"PUBLIC_HOST=1.2.3.4"* ]]
 }
 
 @test "default ports are assigned to the expected schemes" {
@@ -80,6 +82,7 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"HY2 skipped because INSTALL_HY2=false"* ]]
   grep -q 'Hysteria2: skipped by INSTALL_HY2=false' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
-  ! grep -q 'hysteria2://' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  scheme="hysteria2"
+  ! grep -q "${scheme}://" "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   [ ! -e "$REPO_ROOT/tests/tmp/etc/hysteria/hysteria-server.yaml" ]
 }
