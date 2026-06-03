@@ -141,7 +141,7 @@ require_public_host() {
 		return 0
 	fi
 
-	auto_detect_public_host
+	auto_detect_public_host || true
 
 	if [[ -z "${PUBLIC_HOST:-}" ]]; then
 		die "PUBLIC_HOST is required and auto-detection failed. Example: PUBLIC_HOST=1.2.3.4 ./install.sh all"
