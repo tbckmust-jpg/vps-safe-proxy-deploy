@@ -80,27 +80,51 @@ main() {
 
 	case "$command" in
 	all)
-		require_public_host
 		detect_supported_os
 		enable_bbr
-		install_reality_vision
-		install_hy2_stealth
-		install_xhttp_cdn
+		require_public_host
+		if should_install_reality; then
+			install_reality_vision
+		else
+			write_reality_skipped_notice
+		fi
+		if should_install_hy2; then
+			install_hy2_stealth
+		else
+			write_hy2_skipped_notice
+		fi
+		if should_install_xhttp; then
+			install_xhttp_cdn
+		else
+			write_xhttp_skipped_notice
+		fi
 		;;
 	reality)
-		require_public_host
 		detect_supported_os
-		install_reality_vision
+		if should_install_reality; then
+			require_public_host
+			install_reality_vision
+		else
+			write_reality_skipped_notice
+		fi
 		;;
 	hy2)
-		require_public_host
 		detect_supported_os
-		install_hy2_stealth
+		if should_install_hy2; then
+			require_public_host
+			install_hy2_stealth
+		else
+			write_hy2_skipped_notice
+		fi
 		;;
 	xhttp)
-		require_public_host
 		detect_supported_os
-		install_xhttp_cdn
+		if should_install_xhttp; then
+			require_public_host
+			install_xhttp_cdn
+		else
+			write_xhttp_skipped_notice
+		fi
 		;;
 	bbr)
 		detect_supported_os

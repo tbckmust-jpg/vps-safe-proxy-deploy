@@ -1,0 +1,5 @@
+NAME="Alpine Linux"
+ID=alpine
+VERSION_ID=3.23.0
+PRETTY_NAME="Alpine Linux v3.23"
+

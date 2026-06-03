@@ -125,6 +125,10 @@ install_hy2_stealth() {
 	HY2_OBFS_PASSWORD="${HY2_OBFS_PASSWORD:-$(random_password)}"
 	HY2_CLIENT_PORT="$(effective_export_port "$HY2_PORT" "$HY2_EXTERNAL_PORT")"
 
+	if is_true "${NAT_MODE:-false}" && ! is_true "${HY2_UDP_MAPPED:-false}"; then
+		warn "NAT_MODE=true but HY2_UDP_MAPPED is not true; Hysteria2 UDP may be unreachable unless provider UDP forwarding is configured"
+	fi
+
 	if [[ -z "${HY2_DOMAIN:-}" ]]; then
 		HY2_DOMAIN="$PUBLIC_HOST"
 		HY2_TLS_MODE="self-signed"

@@ -1,32 +1,83 @@
 # vps-safe-proxy-deploy
 
-个人 VPS 一键部署项目，目标是在新 VPS 上用一行命令安装三套完整安全伪装代理方案，并把所有客户端信息只写入受限权限的凭据文件。
+个人 VPS 一键安全伪装代理部署项目。目标是在新的 Debian/Ubuntu VPS 上用一行命令部署 Reality Vision、Hysteria2、XHTTP/Caddy 三套方案，并把客户端信息只写入受限权限的凭据文件。
 
-当前提交建立项目骨架、测试框架、模板边界和 CI。后续实现应继续保持模块化，不把协议逻辑堆进 `install.sh`。
+> 真实安装只支持 Debian 11/12、Ubuntu 22.04/24.04 与 systemd。Alpine/OpenRC 暂不支持真实安装。
 
-## 一行安装
+## 通用一行安装与自动检测
 
-默认 main 分支：
+普通 Debian/Ubuntu VPS 可直接运行：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/main/bootstrap.sh) all
 ```
 
-未来稳定版：
+脚本会先检测 OS/init system。只有在需要生成客户端导出信息时，才会检查 `PUBLIC_HOST`。如果未提供 `PUBLIC_HOST`，会按顺序自动尝试：
 
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/v0.1.0/bootstrap.sh) all
-```
+1. `https://api.ipify.org`
+2. `https://ifconfig.co`
+3. `https://icanhazip.com`
 
-带域名：
+也可以手动覆盖：
 
 ```bash
 PUBLIC_HOST=1.2.3.4 \
-HY2_DOMAIN=hy2.example.com \
-XHTTP_DOMAIN=cdn.example.com \
-EMAIL=me@example.com \
 bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/main/bootstrap.sh) all
 ```
+
+NAT 机器示例：
+
+```bash
+NAT_MODE=true \
+REALITY_EXTERNAL_PORT=24443 \
+XHTTP_EXTERNAL_PORT=22053 \
+INSTALL_HY2=false \
+bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/main/bootstrap.sh) all
+```
+
+NAT 模式只影响客户端导出的端口。服务商面板或上级 NAT 设备仍需要手动配置端口转发。
+
+Alpine/OpenRC 只能 dry-run：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/main/bootstrap.sh) all --dry-run
+```
+
+无 UDP 映射的机器建议跳过 HY2：
+
+```bash
+INSTALL_HY2=false bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/main/bootstrap.sh) all --dry-run
+```
+
+## Alpine LXC / NAT / 无 UDP 测试
+
+- Alpine/OpenRC 不支持真实安装，只支持 `--dry-run`。
+- IPv4 NAT 且无 UDP 映射的机器应使用 `INSTALL_HY2=false`。
+- TCP-only NAT 机器只能测试 Reality/XHTTP 的端口导出和 dry-run 渲染。
+- 完整三套真实安装必须使用 Debian/Ubuntu + systemd + TCP/UDP 可用的临时 VPS。
+
+示例：
+
+```bash
+PUBLIC_HOST="$(curl -4fsS https://api.ipify.org)" \
+NAT_MODE=true \
+INSTALL_HY2=false \
+REALITY_EXTERNAL_PORT=24443 \
+XHTTP_EXTERNAL_PORT=22053 \
+bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/main/bootstrap.sh) all --dry-run
+```
+
+## 安装开关
+
+`all` 模式会读取以下开关：
+
+```text
+INSTALL_REALITY=true
+INSTALL_HY2=true
+INSTALL_XHTTP=true
+```
+
+例如 `INSTALL_HY2=false` 会完全跳过 Hysteria2：不渲染 HY2 服务端配置，不生成 HY2 客户端 URI，只在凭据文件里记录跳过原因。
 
 ## 方案目标
 
@@ -36,8 +87,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-
 | `./install.sh hy2` | `8443/udp` | Hysteria2 + TLS/ACME + HTTP/3 Masquerade + Salamander Obfs |
 | `./install.sh xhttp` | `2053/tcp` | VLESS + XHTTP + Caddy 真网站伪装 + CDN/优选节点 |
 | `./install.sh bbr` | 无 | 检测并尽量开启 BBR，不支持则跳过 |
-
-`./install.sh all` 会依次执行 BBR、Reality Vision、Hysteria2、XHTTP/Caddy。
 
 ## 支持命令
 
@@ -64,8 +113,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-
 `--dry-run` 只渲染配置到 `tests/tmp` 或临时目录，不写真实系统目录。  
 `--test-mode` 会优先使用 `tests/mocks` 里的 mock 命令，并把真实路径重定向到 `tests/tmp`。
 
-真实安装逻辑已经实现，但必须先在 GitHub Actions 或 Linux 测试环境保持 CI 全绿，再进入真实 VPS 安装测试。
-
 ## Dry-Run 输出路径
 
 `--dry-run` 和 `--test-mode` 下，写入路径必须保持在 `tests/tmp` 内。默认路径如下：
@@ -81,31 +128,7 @@ CADDY_CONFIG_FILE=tests/tmp/etc/caddy/Caddyfile
 BACKUP_DIR=tests/tmp/backups
 ```
 
-三套方案 dry-run 会生成：
-
-```text
-tests/tmp/etc/xray/xray-reality-vision.json
-tests/tmp/etc/hysteria/hysteria-server.yaml
-tests/tmp/etc/xray/xray-xhttp.json
-tests/tmp/etc/caddy/Caddyfile
-tests/tmp/root/vps-oneclick/site/index.html
-tests/tmp/render/hysteria-client.yaml
-tests/tmp/root/vps-oneclick/credentials.txt
-```
-
 如果用户把这些变量重定向到 `tests/tmp` 之外，安装器会直接退出，避免误写真实系统目录。
-
-`--test-mode` 会把路径重定向到 `tests/tmp` 并优先使用 `tests/mocks` 中的命令，因此可以覆盖真实安装分支而不改真实系统。
-
-## 配置文件
-
-复制示例文件后再按需修改：
-
-```bash
-cp config.env.example config.env
-```
-
-`config.env` 不得提交到 GitHub。缺少 `PUBLIC_HOST` 时，安装器必须给出明确提示。没有 Hysteria2 域名时允许自签证书，但伪装完整度会下降。
 
 ## 客户端信息
 
@@ -115,31 +138,35 @@ cp config.env.example config.env
 /root/vps-oneclick/credentials.txt
 ```
 
-权限必须为 `600`。终端只会提示 `配置已生成，请查看 ...`，不会直接打印完整节点链接。
-
-Reality Vision 的 dry-run 可以使用 fallback 逻辑生成 private/public key 占位值。真实安装阶段会先安装 Xray-core，再使用 `xray x25519` 生成 Reality privateKey/publicKey，并在 `xray test -config` 通过后再重启服务。Xray-core 通过 XTLS/Xray-core GitHub release 下载。
+权限必须为 `600`。终端只会提示凭据文件路径，不会直接打印完整节点链接。
 
 ## XHTTP/CDN 说明
 
-XHTTP 默认由 Caddy 对外提供 HTTPS 网站，只有随机路径会反代到本机 Xray XHTTP。Xray XHTTP 只能监听 `127.0.0.1` 内网端口，不能直接暴露公网。
+XHTTP 默认由 Caddy 对外提供 HTTPS 网站。只有随机路径会反代到本机 Xray XHTTP，Xray XHTTP 只能监听 `127.0.0.1` 内网端口，不能直接暴露公网。
 
 使用 Cloudflare 或优选 IP 时，客户端地址可以填写优选 IP，但 Host/SNI 必须保持 `XHTTP_DOMAIN`。
 
-如果 `XHTTP_DOMAIN` 为空，Caddy 会生成无域名降级配置并只在指定端口提供普通站点，伪装完整度会下降。生产环境建议为 XHTTP/Caddy 准备真实域名。
+如果 `XHTTP_DOMAIN` 为空，Caddy 会生成无域名降级配置，伪装完整度会下降。生产环境建议为 XHTTP/Caddy 准备真实域名。
 
-## Hysteria2 证书
+## Hysteria2 证书与 UDP
 
-提供 `HY2_DOMAIN` 和 `EMAIL` 时会生成 ACME 模式配置。没有 `HY2_DOMAIN` 或没有 `EMAIL` 时会使用自签证书，伪装完整度会下降。Hysteria2 通过 apernet/hysteria GitHub release 下载。
+提供 `HY2_DOMAIN` 和 `EMAIL` 时会生成 ACME 模式配置。没有 `HY2_DOMAIN` 或没有 `EMAIL` 时会使用自签证书，伪装完整度会下降。
 
-## Caddy 来源
+Hysteria2 默认使用 UDP `8443`。脚本会提示 UDP 可用性无法完全本地确认，不会假装 UDP 一定可用。
 
-Caddy 真实安装使用官方 Cloudsmith Caddy stable apt 仓库，不安装 Web 面板。
+## 来源
+
+- Xray-core：XTLS/Xray-core GitHub release。
+- Hysteria2：apernet/hysteria GitHub release。
+- Caddy：官方 Cloudsmith Caddy stable apt 仓库。
+
+不安装 Web 面板，不开放管理端口。
 
 ## 防火墙和 NAT
 
 只有 `ENABLE_FIREWALL=true` 时才会尝试使用 `ufw allow` 放行所需端口，不会清空现有规则。`ufw` 不存在时只提示 warning，不中断安装。
 
-`NAT_MODE=true` 时客户端导出使用 `*_EXTERNAL_PORT`，但还需要在 VPS 服务商面板或上级 NAT 设备中配置端口转发。
+`NAT_MODE=true` 时客户端导出使用 `*_EXTERNAL_PORT`，但仍需要在服务商面板或上级 NAT 设备中配置端口转发。
 
 ## 测试
 
@@ -151,8 +178,6 @@ bats tests/bats
 ```
 
 GitHub Actions 会在 `push` 和 `pull_request` 时运行语法、格式、ShellCheck、Bats 和安全扫描。
-
-如果当前本机没有 `bash`、`shellcheck`、`shfmt` 或 `bats`，不要为了 dry-run 阶段去安装第三方脚本；先提交代码，让 GitHub Actions 或 Linux 环境运行完整检查。
 
 ## GitHub 部署
 

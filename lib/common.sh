@@ -76,6 +76,9 @@ apply_default_config() {
 	: "${ENABLE_BBR:=true}"
 	: "${ENABLE_FIREWALL:=${OPEN_FIREWALL:-true}}"
 	: "${OPEN_FIREWALL:=${ENABLE_FIREWALL}}"
+	: "${INSTALL_REALITY:=true}"
+	: "${INSTALL_HY2:=true}"
+	: "${INSTALL_XHTTP:=true}"
 	: "${XRAY_VERSION:=latest}"
 	: "${HY2_VERSION:=latest}"
 }
@@ -133,9 +136,90 @@ prepare_runtime_dirs() {
 }
 
 require_public_host() {
-	if [[ -z "${PUBLIC_HOST:-}" ]]; then
-		die "PUBLIC_HOST is required. Example: PUBLIC_HOST=1.2.3.4 ./install.sh all --dry-run"
+	if [[ -n "${PUBLIC_HOST:-}" ]]; then
+		export PUBLIC_HOST
+		return 0
 	fi
+
+	auto_detect_public_host
+
+	if [[ -z "${PUBLIC_HOST:-}" ]]; then
+		die "PUBLIC_HOST is required and auto-detection failed. Example: PUBLIC_HOST=1.2.3.4 ./install.sh all"
+	fi
+}
+
+auto_detect_public_host() {
+	local url detected
+
+	if ! command -v curl >/dev/null 2>&1; then
+		warn "curl not found; cannot auto-detect PUBLIC_HOST"
+		return 1
+	fi
+
+	for url in \
+		"https://api.ipify.org" \
+		"https://ifconfig.co" \
+		"https://icanhazip.com"; do
+		detected="$(curl -4fsS --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]' || true)"
+		if is_ipv4 "$detected"; then
+			PUBLIC_HOST="$detected"
+			export PUBLIC_HOST
+			log "auto-detected PUBLIC_HOST=${PUBLIC_HOST}"
+			return 0
+		fi
+	done
+
+	warn "failed to auto-detect PUBLIC_HOST"
+	return 1
+}
+
+is_ipv4() {
+	local ip="$1"
+	local IFS=.
+	local -a parts
+	local part
+
+	[[ "$ip" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || return 1
+	read -r -a parts <<<"$ip"
+	[[ "${#parts[@]}" -eq 4 ]] || return 1
+
+	for part in "${parts[@]}"; do
+		[[ "$part" =~ ^[0-9]+$ ]] || return 1
+		((part >= 0 && part <= 255)) || return 1
+	done
+}
+
+should_install_hy2() {
+	is_true "${INSTALL_HY2:-true}"
+}
+
+should_install_reality() {
+	is_true "${INSTALL_REALITY:-true}"
+}
+
+should_install_xhttp() {
+	is_true "${INSTALL_XHTTP:-true}"
+}
+
+write_reality_skipped_notice() {
+	append_credential ''
+	append_credential '[reality-vision]'
+	append_credential 'Reality Vision: skipped by INSTALL_REALITY=false'
+	log "Reality skipped because INSTALL_REALITY=false"
+}
+
+write_hy2_skipped_notice() {
+	append_credential ''
+	append_credential '[hysteria2]'
+	append_credential 'Hysteria2: skipped by INSTALL_HY2=false'
+	log "HY2 skipped because INSTALL_HY2=false"
+}
+
+write_xhttp_skipped_notice() {
+	append_credential ''
+	append_credential '[xhttp-cdn]'
+	append_credential 'XHTTP: skipped by INSTALL_XHTTP=false'
+	log "XHTTP skipped because INSTALL_XHTTP=false"
 }
 
 ensure_no_port_conflicts() {
