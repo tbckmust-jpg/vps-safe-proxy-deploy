@@ -15,8 +15,8 @@ warn() {
 
 is_true() {
 	case "${1:-}" in
-		true | TRUE | 1 | yes | YES | y | Y) return 0 ;;
-		*) return 1 ;;
+	true | TRUE | 1 | yes | YES | y | Y) return 0 ;;
+	*) return 1 ;;
 	esac
 }
 
@@ -170,8 +170,8 @@ credentials_notice() {
 
 absolute_project_path() {
 	case "$1" in
-		/*) printf '%s\n' "$1" ;;
-		*) printf '%s/%s\n' "$PROJECT_ROOT" "$1" ;;
+	/*) printf '%s\n' "$1" ;;
+	*) printf '%s/%s\n' "$PROJECT_ROOT" "$1" ;;
 	esac
 }
 
@@ -197,11 +197,11 @@ ensure_test_tmp_path() {
 	local path="$2"
 
 	case "$path" in
-		*".."*) die "${name} must not contain .. in dry-run/test-mode: ${path}" ;;
+	*".."*) die "${name} must not contain .. in dry-run/test-mode: ${path}" ;;
 	esac
 
 	case "$path" in
-		"$TEST_TMP_DIR" | "$TEST_TMP_DIR"/*) return 0 ;;
+	"$TEST_TMP_DIR" | "$TEST_TMP_DIR"/*) return 0 ;;
 	esac
 
 	die "${name} must stay under ${TEST_TMP_DIR} in dry-run/test-mode: ${path}"

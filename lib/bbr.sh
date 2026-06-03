@@ -25,4 +25,3 @@ enable_bbr() {
 	grep -q '^net.ipv4.tcp_congestion_control=bbr$' /etc/sysctl.conf || printf '%s\n' 'net.ipv4.tcp_congestion_control=bbr' >>/etc/sysctl.conf
 	sysctl -p >/dev/null || warn "sysctl reload failed; BBR settings may require manual review"
 }
-

@@ -23,4 +23,3 @@ uninstall_all() {
 		log "credentials preserved at ${CREDENTIALS_FILE}; pass --purge to remove them"
 	fi
 }
-

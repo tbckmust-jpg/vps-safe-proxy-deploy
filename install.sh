@@ -55,23 +55,23 @@ main() {
 
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
-			--dry-run)
-				DRY_RUN=true
-				;;
-			--test-mode)
-				TEST_MODE=true
-				DRY_RUN=true
-				;;
-			--purge)
-				PURGE=true
-				;;
-			-h | --help)
-				usage
-				return 0
-				;;
-			*)
-				die "unknown option: $1"
-				;;
+		--dry-run)
+			DRY_RUN=true
+			;;
+		--test-mode)
+			TEST_MODE=true
+			DRY_RUN=true
+			;;
+		--purge)
+			PURGE=true
+			;;
+		-h | --help)
+			usage
+			return 0
+			;;
+		*)
+			die "unknown option: $1"
+			;;
 		esac
 		shift
 	done
@@ -80,48 +80,47 @@ main() {
 	load_config_file
 
 	case "$command" in
-		all)
-			require_public_host
-			detect_supported_os
-			enable_bbr
-			install_reality_vision
-			install_hy2_stealth
-			install_xhttp_cdn
-			;;
-		reality)
-			require_public_host
-			detect_supported_os
-			install_reality_vision
-			;;
-		hy2)
-			require_public_host
-			detect_supported_os
-			install_hy2_stealth
-			;;
-		xhttp)
-			require_public_host
-			detect_supported_os
-			install_xhttp_cdn
-			;;
-		bbr)
-			detect_supported_os
-			enable_bbr
-			;;
-		status)
-			show_status
-			;;
-		uninstall)
-			uninstall_all
-			;;
-		help | --help | -h)
-			usage
-			;;
-		*)
-			usage >&2
-			die "unknown command: $command"
-			;;
+	all)
+		require_public_host
+		detect_supported_os
+		enable_bbr
+		install_reality_vision
+		install_hy2_stealth
+		install_xhttp_cdn
+		;;
+	reality)
+		require_public_host
+		detect_supported_os
+		install_reality_vision
+		;;
+	hy2)
+		require_public_host
+		detect_supported_os
+		install_hy2_stealth
+		;;
+	xhttp)
+		require_public_host
+		detect_supported_os
+		install_xhttp_cdn
+		;;
+	bbr)
+		detect_supported_os
+		enable_bbr
+		;;
+	status)
+		show_status
+		;;
+	uninstall)
+		uninstall_all
+		;;
+	help | --help | -h)
+		usage
+		;;
+	*)
+		usage >&2
+		die "unknown command: $command"
+		;;
 	esac
 }
 
 main "$@"
-

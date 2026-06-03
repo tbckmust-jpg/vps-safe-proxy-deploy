@@ -20,4 +20,3 @@ allow_firewall_port() {
 		warn "ufw not found; please allow ${port}/${proto} manually"
 	fi
 }
-

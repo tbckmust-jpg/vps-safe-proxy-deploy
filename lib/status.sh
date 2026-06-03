@@ -14,4 +14,3 @@ show_status() {
 		fi
 	done
 }
-

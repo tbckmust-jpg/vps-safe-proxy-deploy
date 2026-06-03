@@ -14,15 +14,14 @@ detect_supported_os() {
 	. /etc/os-release
 
 	case "${ID:-}:${VERSION_ID:-}" in
-		debian:11 | debian:12 | ubuntu:22.04 | ubuntu:24.04)
-			log "supported OS detected: ${PRETTY_NAME:-${ID} ${VERSION_ID}}"
-			;;
-		alpine:*)
-			die "Alpine/OpenRC is not supported yet; exiting without installing systemd services"
-			;;
-		*)
-			die "unsupported OS: ${PRETTY_NAME:-unknown}; supported systems are Debian 11/12 and Ubuntu 22.04/24.04"
-			;;
+	debian:11 | debian:12 | ubuntu:22.04 | ubuntu:24.04)
+		log "supported OS detected: ${PRETTY_NAME:-${ID} ${VERSION_ID}}"
+		;;
+	alpine:*)
+		die "Alpine/OpenRC is not supported yet; exiting without installing systemd services"
+		;;
+	*)
+		die "unsupported OS: ${PRETTY_NAME:-unknown}; supported systems are Debian 11/12 and Ubuntu 22.04/24.04"
+		;;
 	esac
 }
-
