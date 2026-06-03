@@ -6,6 +6,7 @@ render_caddy_site() {
 	if [[ -n "${EMAIL:-}" ]]; then
 		CADDY_TLS_LINE="tls ${EMAIL}"
 	fi
+	export CADDY_TLS_LINE
 
 	mkdir -p "$CADDY_SITE_DIR"
 	render_template "${PROJECT_ROOT}/templates/fake-site-index.html.tpl" "${CADDY_SITE_DIR}/index.html"

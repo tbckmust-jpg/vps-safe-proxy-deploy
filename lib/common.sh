@@ -42,8 +42,8 @@ load_config_file() {
 	if is_true "${TEST_MODE:-false}" && [[ -z "${CONFIG_FILE:-}" ]]; then
 		log "test-mode: skipping config.env unless CONFIG_FILE is set"
 	elif [[ -f "$config_file" ]]; then
-		# shellcheck source=/dev/null
 		set -a
+		# shellcheck source=/dev/null
 		. "$config_file"
 		set +a
 	fi
