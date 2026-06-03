@@ -185,10 +185,6 @@ append_credential() {
 }
 
 credentials_notice() {
-	log "配置已生成，请查看 ${CREDENTIALS_FILE}"
-}
-
-credentials_notice() {
 	log "credentials generated; view ${CREDENTIALS_FILE}"
 }
 
