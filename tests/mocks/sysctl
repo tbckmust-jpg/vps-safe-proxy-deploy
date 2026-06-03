@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mock_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+mkdir -p "${mock_dir}/tmp"
+printf 'sysctl %s\n' "$*" >>"${mock_dir}/tmp/mock-calls.log"
+
+if [[ "${1:-}" == "net.ipv4.tcp_available_congestion_control" ]]; then
+  if [[ "${MOCK_BBR_UNSUPPORTED:-0}" == "1" ]]; then
+    printf 'net.ipv4.tcp_available_congestion_control = cubic reno\n'
+  else
+    printf 'net.ipv4.tcp_available_congestion_control = reno cubic bbr\n'
+  fi
+  exit 0
+fi
+
+if [[ "${1:-}" == "--system" && "${MOCK_SYSCTL_SYSTEM_FAIL:-0}" == "1" ]]; then
+  exit 1
+fi
+
+exit 0

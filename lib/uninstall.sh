@@ -18,6 +18,7 @@ uninstall_all() {
 	done
 
 	if is_true "${PURGE:-false}"; then
+		rm -f "$XRAY_REALITY_CONFIG_FILE" "$XRAY_XHTTP_CONFIG_FILE" "$HY2_CONFIG_FILE" "$CADDY_CONFIG_FILE"
 		rm -f "$CREDENTIALS_FILE"
 	else
 		log "credentials preserved at ${CREDENTIALS_FILE}; pass --purge to remove them"

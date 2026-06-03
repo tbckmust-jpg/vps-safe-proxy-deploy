@@ -19,7 +19,7 @@ setup() {
     bash "$REPO_ROOT/install.sh" all --dry-run --test-mode
   [ "$status" -eq 0 ]
   [[ "$output" != *"://"* ]]
-  [[ "$output" == *"配置已生成，请查看"* ]]
+  [[ "$output" == *"credentials generated; view"* ]]
 }
 
 @test "credentials are written only to the redirected credentials file with 600 mode in test mode" {

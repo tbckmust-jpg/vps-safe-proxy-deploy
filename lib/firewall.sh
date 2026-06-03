@@ -4,7 +4,7 @@ allow_firewall_port() {
 	local port="$1"
 	local proto="$2"
 
-	if ! is_true "${OPEN_FIREWALL:-true}"; then
+	if ! is_true "${ENABLE_FIREWALL:-true}"; then
 		log "firewall changes disabled by configuration"
 		return 0
 	fi

@@ -60,7 +60,6 @@ main() {
 			;;
 		--test-mode)
 			TEST_MODE=true
-			DRY_RUN=true
 			;;
 		--purge)
 			PURGE=true

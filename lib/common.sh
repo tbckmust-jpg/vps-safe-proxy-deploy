@@ -24,11 +24,19 @@ is_dry_run() {
 	is_true "${DRY_RUN:-false}"
 }
 
+is_test_mode() {
+	is_true "${TEST_MODE:-false}"
+}
+
+is_simulation() {
+	is_dry_run || is_test_mode
+}
+
 init_runtime() {
 	PROJECT_ROOT="$1"
 	TEST_TMP_DIR="${TEST_TMP_DIR:-${PROJECT_ROOT}/tests/tmp}"
 
-	if is_true "${TEST_MODE:-false}"; then
+	if is_test_mode; then
 		mkdir -p "${TEST_TMP_DIR}"
 		PATH="${PROJECT_ROOT}/tests/mocks:${PATH}"
 		export PATH
@@ -39,7 +47,7 @@ init_runtime() {
 load_config_file() {
 	local config_file="${CONFIG_FILE:-${PROJECT_ROOT}/config.env}"
 
-	if is_true "${TEST_MODE:-false}" && [[ -z "${CONFIG_FILE:-}" ]]; then
+	if is_test_mode && [[ -z "${CONFIG_FILE:-}" ]]; then
 		log "test-mode: skipping config.env unless CONFIG_FILE is set"
 	elif [[ -f "$config_file" ]]; then
 		set -a
@@ -66,11 +74,14 @@ apply_default_config() {
 	: "${MASQUERADE_MODE:=file}"
 	: "${MASQUERADE_PROXY_URL:=https://example.com}"
 	: "${ENABLE_BBR:=true}"
-	: "${OPEN_FIREWALL:=true}"
+	: "${ENABLE_FIREWALL:=${OPEN_FIREWALL:-true}}"
+	: "${OPEN_FIREWALL:=${ENABLE_FIREWALL}}"
+	: "${XRAY_VERSION:=latest}"
+	: "${HY2_VERSION:=latest}"
 }
 
 configure_runtime_paths() {
-	if is_dry_run || is_true "${TEST_MODE:-false}"; then
+	if is_simulation; then
 		mkdir -p "$TEST_TMP_DIR"
 		TEST_TMP_DIR="$(cd "$TEST_TMP_DIR" && pwd -P)"
 		ROOT_DIR="${ROOT_DIR:-${TEST_TMP_DIR}/root}"
@@ -79,6 +90,9 @@ configure_runtime_paths() {
 		CREDENTIALS_FILE="${CREDENTIALS_FILE:-${ROOT_DIR}/vps-oneclick/credentials.txt}"
 		RENDER_DIR="${RENDER_DIR:-${TEST_TMP_DIR}/render}"
 		BACKUP_DIR="${BACKUP_DIR:-${TEST_TMP_DIR}/backups}"
+		BIN_DIR="${BIN_DIR:-${TEST_TMP_DIR}/bin}"
+		SYSTEMD_DIR="${SYSTEMD_DIR:-${ETC_DIR}/systemd/system}"
+		SYSCTL_BBR_FILE="${SYSCTL_BBR_FILE:-${ETC_DIR}/sysctl.d/99-vps-oneclick-bbr.conf}"
 	else
 		ROOT_DIR="${ROOT_DIR:-/root/vps-oneclick}"
 		ETC_DIR="${ETC_DIR:-/usr/local/etc}"
@@ -86,6 +100,9 @@ configure_runtime_paths() {
 		CREDENTIALS_FILE="${CREDENTIALS_FILE:-/root/vps-oneclick/credentials.txt}"
 		RENDER_DIR="${RENDER_DIR:-${ROOT_DIR}/rendered}"
 		BACKUP_DIR="${BACKUP_DIR:-${ROOT_DIR}/backups}"
+		BIN_DIR="${BIN_DIR:-/usr/local/bin}"
+		SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
+		SYSCTL_BBR_FILE="${SYSCTL_BBR_FILE:-/etc/sysctl.d/99-vps-oneclick-bbr.conf}"
 	fi
 
 	APP_DATA_DIR="${APP_DATA_DIR:-$(dirname "$CREDENTIALS_FILE")}"
@@ -96,20 +113,23 @@ configure_runtime_paths() {
 	HY2_CLIENT_CONFIG_FILE="${HY2_CLIENT_CONFIG_FILE:-${RENDER_DIR}/hysteria-client.yaml}"
 	CADDY_CONFIG_FILE="${CADDY_CONFIG_FILE:-${ETC_DIR}/caddy/Caddyfile}"
 	CADDY_SITE_DIR="${CADDY_SITE_DIR:-${APP_DATA_DIR}/site}"
+	CADDY_RENDERED_CONFIG_FILE="${CADDY_RENDERED_CONFIG_FILE:-${RENDER_DIR}/Caddyfile}"
 
-	if is_dry_run || is_true "${TEST_MODE:-false}"; then
+	if is_simulation; then
 		normalize_simulation_paths
 		validate_simulation_paths
 	fi
 
 	export ROOT_DIR ETC_DIR LOG_DIR CREDENTIALS_FILE RENDER_DIR BACKUP_DIR APP_DATA_DIR
+	export BIN_DIR SYSTEMD_DIR SYSCTL_BBR_FILE
 	export XRAY_CONFIG_FILE XRAY_REALITY_CONFIG_FILE XRAY_XHTTP_CONFIG_FILE
-	export HY2_CONFIG_FILE HY2_CLIENT_CONFIG_FILE CADDY_CONFIG_FILE CADDY_SITE_DIR
+	export HY2_CONFIG_FILE HY2_CLIENT_CONFIG_FILE CADDY_CONFIG_FILE CADDY_SITE_DIR CADDY_RENDERED_CONFIG_FILE
 }
 
 prepare_runtime_dirs() {
 	mkdir -p "$ROOT_DIR" "$ETC_DIR" "$LOG_DIR" "$RENDER_DIR" "$BACKUP_DIR"
 	mkdir -p "$(dirname "$CREDENTIALS_FILE")" "$(dirname "$XRAY_CONFIG_FILE")" "$(dirname "$HY2_CONFIG_FILE")" "$(dirname "$CADDY_CONFIG_FILE")"
+	mkdir -p "$BIN_DIR" "$SYSTEMD_DIR" "$(dirname "$SYSCTL_BBR_FILE")"
 }
 
 require_public_host() {
@@ -168,6 +188,10 @@ credentials_notice() {
 	log "配置已生成，请查看 ${CREDENTIALS_FILE}"
 }
 
+credentials_notice() {
+	log "credentials generated; view ${CREDENTIALS_FILE}"
+}
+
 absolute_project_path() {
 	case "$1" in
 	/*) printf '%s\n' "$1" ;;
@@ -190,6 +214,10 @@ normalize_simulation_paths() {
 	HY2_CLIENT_CONFIG_FILE="$(absolute_project_path "$HY2_CLIENT_CONFIG_FILE")"
 	CADDY_CONFIG_FILE="$(absolute_project_path "$CADDY_CONFIG_FILE")"
 	CADDY_SITE_DIR="$(absolute_project_path "$CADDY_SITE_DIR")"
+	CADDY_RENDERED_CONFIG_FILE="$(absolute_project_path "$CADDY_RENDERED_CONFIG_FILE")"
+	BIN_DIR="$(absolute_project_path "$BIN_DIR")"
+	SYSTEMD_DIR="$(absolute_project_path "$SYSTEMD_DIR")"
+	SYSCTL_BBR_FILE="$(absolute_project_path "$SYSCTL_BBR_FILE")"
 }
 
 ensure_test_tmp_path() {
@@ -221,6 +249,58 @@ validate_simulation_paths() {
 	ensure_test_tmp_path HY2_CLIENT_CONFIG_FILE "$HY2_CLIENT_CONFIG_FILE"
 	ensure_test_tmp_path CADDY_CONFIG_FILE "$CADDY_CONFIG_FILE"
 	ensure_test_tmp_path CADDY_SITE_DIR "$CADDY_SITE_DIR"
+	ensure_test_tmp_path CADDY_RENDERED_CONFIG_FILE "$CADDY_RENDERED_CONFIG_FILE"
+	ensure_test_tmp_path BIN_DIR "$BIN_DIR"
+	ensure_test_tmp_path SYSTEMD_DIR "$SYSTEMD_DIR"
+	ensure_test_tmp_path SYSCTL_BBR_FILE "$SYSCTL_BBR_FILE"
+}
+
+require_root() {
+	if is_simulation; then
+		return 0
+	fi
+
+	if [[ "$(id -u)" != "0" ]]; then
+		die "real installation must be run as root"
+	fi
+}
+
+require_linux_install_host() {
+	require_root
+
+	if ! command -v systemctl >/dev/null 2>&1; then
+		die "systemd is required for real installation; Alpine/OpenRC is not supported"
+	fi
+}
+
+install_system_dependencies() {
+	if is_dry_run; then
+		log "dry-run: would install curl unzip openssl ca-certificates"
+		return 0
+	fi
+
+	if is_test_mode; then
+		log "test-mode: skipping package installation"
+		return 0
+	fi
+
+	apt-get update
+	apt-get install -y curl unzip openssl ca-certificates
+}
+
+write_systemd_unit() {
+	local destination="$1"
+	local content="$2"
+	local backup_path
+
+	backup_path="$(backup_file "$destination" "$(basename "$destination")" || true)"
+	printf '%s\n' "$content" >"$destination"
+
+	if ! systemctl daemon-reload; then
+		warn "systemctl daemon-reload failed; restoring previous unit"
+		rollback_config "$backup_path" "$destination"
+		return 1
+	fi
 }
 
 replace_token() {
@@ -246,7 +326,7 @@ render_template() {
 		REALITY_UUID REALITY_PRIVATE_KEY REALITY_PUBLIC_KEY REALITY_SHORT_ID \
 		HY2_PASSWORD HY2_TLS_MODE HY2_CERT_FILE HY2_KEY_FILE HY2_MASQUERADE_DIR HY2_OBFS_PASSWORD HY2_CLIENT_PORT \
 		MASQUERADE_MODE MASQUERADE_PROXY_URL \
-		XHTTP_UUID XHTTP_PATH CADDY_SITE_DIR CADDY_TLS_LINE; do
+		XHTTP_UUID XHTTP_PATH CADDY_SITE_DIR CADDY_TLS_LINE CADDY_SITE_ADDRESS CADDY_SITE_NAME; do
 		replace_token "$destination" "$name" "${!name:-}"
 	done
 }
@@ -258,7 +338,7 @@ backup_file() {
 
 	[[ -e "$source" ]] || return 0
 	mkdir -p "$BACKUP_DIR"
-	backup_path="${BACKUP_DIR}/${label}.$(date +%Y%m%d%H%M%S).bak"
+	backup_path="${BACKUP_DIR}/${label}.$(date +%Y%m%d%H%M%S).$$.bak"
 	cp -a "$source" "$backup_path"
 	printf '%s\n' "$backup_path"
 }

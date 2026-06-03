@@ -11,8 +11,8 @@ enable_bbr() {
 		return 0
 	fi
 
-	if [[ ! -w /etc/sysctl.conf ]]; then
-		warn "cannot modify sysctl configuration; skipping BBR"
+	if [[ "$(uname -s)" != "Linux" ]]; then
+		warn "BBR requires Linux; skipping"
 		return 0
 	fi
 
@@ -21,7 +21,14 @@ enable_bbr() {
 		return 0
 	fi
 
-	grep -q '^net.core.default_qdisc=fq$' /etc/sysctl.conf || printf '%s\n' 'net.core.default_qdisc=fq' >>/etc/sysctl.conf
-	grep -q '^net.ipv4.tcp_congestion_control=bbr$' /etc/sysctl.conf || printf '%s\n' 'net.ipv4.tcp_congestion_control=bbr' >>/etc/sysctl.conf
-	sysctl -p >/dev/null || warn "sysctl reload failed; BBR settings may require manual review"
+	require_root
+	mkdir -p "$(dirname "$SYSCTL_BBR_FILE")"
+	cat >"$SYSCTL_BBR_FILE" <<'EOF'
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+EOF
+
+	if ! sysctl --system >/dev/null; then
+		warn "sysctl --system failed; BBR settings may require manual review"
+	fi
 }

@@ -64,7 +64,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-
 `--dry-run` 只渲染配置到 `tests/tmp` 或临时目录，不写真实系统目录。  
 `--test-mode` 会优先使用 `tests/mocks` 里的 mock 命令，并把真实路径重定向到 `tests/tmp`。
 
-当前第二阶段只实现 dry-run/test-mode 渲染和 mock 回滚测试，不执行真实系统安装。
+真实安装逻辑已经实现，但必须先在 GitHub Actions 或 Linux 测试环境保持 CI 全绿，再进入真实 VPS 安装测试。
 
 ## Dry-Run 输出路径
 
@@ -95,6 +95,8 @@ tests/tmp/root/vps-oneclick/credentials.txt
 
 如果用户把这些变量重定向到 `tests/tmp` 之外，安装器会直接退出，避免误写真实系统目录。
 
+`--test-mode` 会把路径重定向到 `tests/tmp` 并优先使用 `tests/mocks` 中的命令，因此可以覆盖真实安装分支而不改真实系统。
+
 ## 配置文件
 
 复制示例文件后再按需修改：
@@ -115,13 +117,29 @@ cp config.env.example config.env
 
 权限必须为 `600`。终端只会提示 `配置已生成，请查看 ...`，不会直接打印完整节点链接。
 
-Reality Vision 的 dry-run 可以使用 fallback 逻辑生成 private/public key 占位值。真实安装阶段应使用 `xray x25519` 生成 Reality privateKey/publicKey，并在 `xray test -config` 通过后再重启服务。
+Reality Vision 的 dry-run 可以使用 fallback 逻辑生成 private/public key 占位值。真实安装阶段会先安装 Xray-core，再使用 `xray x25519` 生成 Reality privateKey/publicKey，并在 `xray test -config` 通过后再重启服务。Xray-core 通过 XTLS/Xray-core GitHub release 下载。
 
 ## XHTTP/CDN 说明
 
 XHTTP 默认由 Caddy 对外提供 HTTPS 网站，只有随机路径会反代到本机 Xray XHTTP。Xray XHTTP 只能监听 `127.0.0.1` 内网端口，不能直接暴露公网。
 
 使用 Cloudflare 或优选 IP 时，客户端地址可以填写优选 IP，但 Host/SNI 必须保持 `XHTTP_DOMAIN`。
+
+如果 `XHTTP_DOMAIN` 为空，Caddy 会生成无域名降级配置并只在指定端口提供普通站点，伪装完整度会下降。生产环境建议为 XHTTP/Caddy 准备真实域名。
+
+## Hysteria2 证书
+
+提供 `HY2_DOMAIN` 和 `EMAIL` 时会生成 ACME 模式配置。没有 `HY2_DOMAIN` 或没有 `EMAIL` 时会使用自签证书，伪装完整度会下降。Hysteria2 通过 apernet/hysteria GitHub release 下载。
+
+## Caddy 来源
+
+Caddy 真实安装使用官方 Cloudsmith Caddy stable apt 仓库，不安装 Web 面板。
+
+## 防火墙和 NAT
+
+只有 `ENABLE_FIREWALL=true` 时才会尝试使用 `ufw allow` 放行所需端口，不会清空现有规则。`ufw` 不存在时只提示 warning，不中断安装。
+
+`NAT_MODE=true` 时客户端导出使用 `*_EXTERNAL_PORT`，但还需要在 VPS 服务商面板或上级 NAT 设备中配置端口转发。
 
 ## 测试
 

@@ -107,3 +107,74 @@ setup() {
   run bash -c "PATH='$REPO_ROOT/tests/mocks':\"\$PATH\" MOCK_CADDY_FAIL=1 caddy validate"
   [ "$status" -ne 0 ]
 }
+
+@test "test-mode all invokes real install path through mocks" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 HY2_DOMAIN=hy2.example.com XHTTP_DOMAIN=cdn.example.com EMAIL=me@example.com \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -eq 0 ]
+
+  grep -q 'xray x25519' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'xray test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'hysteria version' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'caddy version' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'caddy validate --config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart xray' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart hysteria-server' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart caddy' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'ufw allow 443/tcp' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'ufw allow 8443/udp' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'ufw allow 2053/tcp' "$REPO_ROOT/tests/tmp/mock-calls.log"
+}
+
+@test "caddy validate failure restores previous Caddyfile" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/caddy_site.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    prepare_runtime_dirs
+    printf old >\"\$CADDY_CONFIG_FILE\"
+    printf new >\"\$CADDY_RENDERED_CONFIG_FILE\"
+    MOCK_CADDY_VALIDATE_FAIL=1 stage_caddy_config_with_rollback \"\$CADDY_RENDERED_CONFIG_FILE\"
+  "
+  [ "$status" -ne 0 ]
+  grep -q '^old$' "$REPO_ROOT/tests/tmp/etc/caddy/Caddyfile"
+  grep -q 'caddy validate --config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+}
+
+@test "BBR unsupported does not interrupt all in test mode" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 HY2_DOMAIN=hy2.example.com XHTTP_DOMAIN=cdn.example.com EMAIL=me@example.com MOCK_BBR_UNSUPPORTED=1 \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"kernel does not report BBR support; skipping"* ]]
+}
+
+@test "firewall command missing does not interrupt install" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    DRY_RUN=false
+    TEST_MODE=false
+    ENABLE_FIREWALL=true
+    PATH='/usr/bin:/bin'
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/firewall.sh\"
+    allow_firewall_port 443 tcp
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ufw not found"* ]]
+}
+
+@test "status does not leak full node links" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 \
+    bash "$REPO_ROOT/install.sh" status --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"://"* ]]
+  [[ "$output" == *"credentials file:"* ]]
+}

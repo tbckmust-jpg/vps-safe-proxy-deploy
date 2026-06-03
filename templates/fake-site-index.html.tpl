@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{XHTTP_DOMAIN}}</title>
+    <title>{{CADDY_SITE_NAME}}</title>
     <style>
       body {
         margin: 0;
@@ -28,10 +28,9 @@
   </head>
   <body>
     <main>
-      <h1>{{XHTTP_DOMAIN}}</h1>
+      <h1>{{CADDY_SITE_NAME}}</h1>
       <p>Welcome. This site is served as a normal static HTTPS website.</p>
       <p>Static assets, documentation, and service information can be published here.</p>
     </main>
   </body>
 </html>
-

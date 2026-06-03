@@ -1,4 +1,4 @@
-{{XHTTP_DOMAIN}}:{{XHTTP_HTTPS_PORT}} {
+{{CADDY_SITE_ADDRESS}} {
   {{CADDY_TLS_LINE}}
   root * {{CADDY_SITE_DIR}}
 
@@ -13,4 +13,3 @@
     file_server
   }
 }
-

@@ -7,7 +7,7 @@
 - 所有功能都必须支持 `--dry-run` 和 `--test-mode`。
 - 所有真实系统路径都必须可通过变量重定向到 `tests/tmp`，包括 `ROOT_DIR`、`ETC_DIR`、`LOG_DIR`、`CREDENTIALS_FILE`、`XRAY_CONFIG_FILE`、`HY2_CONFIG_FILE`、`CADDY_CONFIG_FILE`、`BACKUP_DIR`。
 - `--dry-run` 和 `--test-mode` 的输出路径必须保持在 `tests/tmp` 内；如果变量指向真实系统目录，必须退出。
-- 第二阶段只允许实现 dry-run/test-mode 渲染和 mock 测试，不得真实安装 Xray、Hysteria2、Caddy。
+- 真实安装逻辑必须能在 `--test-mode` 下走 mock 命令验证，不能为了测试写真实系统目录。
 - 不得提交密钥、密码、UUID、节点链接、证书、日志或真实配置文件。
 - 不得默认安装 Web 面板。
 - 不得默认开放管理端口。

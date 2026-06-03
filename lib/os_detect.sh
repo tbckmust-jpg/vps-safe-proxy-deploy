@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 detect_supported_os() {
-	if is_dry_run; then
-		log "dry-run: skipping operating system changes"
+	if is_simulation; then
+		log "simulation: skipping operating system changes"
 		return 0
 	fi
 
