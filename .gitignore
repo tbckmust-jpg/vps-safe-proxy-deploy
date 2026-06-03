@@ -1,0 +1,15 @@
+config.env
+*.env
+credentials.txt
+*.key
+*.pem
+*.crt
+*.log
+backups/
+tmp/
+tests/tmp/
+
+
+.git-bad-*/
+
+.git-bad-*/

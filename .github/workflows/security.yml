@@ -1,0 +1,49 @@
+name: security
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  secret-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refuse committed secrets
+        run: |
+          set -euo pipefail
+
+          fail=0
+
+          if git ls-files | grep -E '(^|/)config\.env$|(^|/)credentials\.txt$|\.key$|\.pem$|\.crt$'; then
+            echo "Sensitive file path is tracked."
+            fail=1
+          fi
+
+          scan() {
+            git ls-files -z \
+              | grep -zEv '^(\.github/workflows/security\.yml|tests/tmp/)' \
+              | xargs -0 grep -InE "$1" || true
+          }
+
+          if scan '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' | grep .; then
+            echo "Possible UUID committed."
+            fail=1
+          fi
+
+          if scan 'privateKey[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_-]{35,}' | grep .; then
+            echo "Possible Reality private key committed."
+            fail=1
+          fi
+
+          proto_vless='vless'
+          proto_hy2='hysteria2'
+          if scan "(${proto_vless}|${proto_hy2})://" | grep .; then
+            echo "Complete proxy URI committed."
+            fail=1
+          fi
+
+          exit "$fail"
+

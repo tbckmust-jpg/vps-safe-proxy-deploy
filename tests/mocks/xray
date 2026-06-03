@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mock_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+mkdir -p "${mock_dir}/tmp"
+printf 'xray %s\n' "$*" >>"${mock_dir}/tmp/mock-calls.log"
+
+if [[ "${MOCK_XRAY_TEST_FAIL:-0}" == "1" ]]; then
+  case " $* " in
+    *" test "*)
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ "${1:-}" == "x25519" ]]; then
+  printf 'Private key: MOCK_PRIVATE_KEY\n'
+  printf 'Public key: MOCK_PUBLIC_KEY\n'
+fi
+
+exit 0
+

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mock_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+mkdir -p "${mock_dir}/tmp"
+printf 'caddy %s\n' "$*" >>"${mock_dir}/tmp/mock-calls.log"
+
+if [[ "${MOCK_CADDY_FAIL:-0}" == "1" ]]; then
+  exit 1
+fi
+
+exit 0
