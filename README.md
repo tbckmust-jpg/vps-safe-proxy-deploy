@@ -37,6 +37,43 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-
 
 NAT 模式只影响客户端导出的端口。服务商面板或上级 NAT 设备仍需要手动配置端口转发。
 
+## 什么叫通用脚本
+
+这里的通用不是指在任何系统上都强行安装三套协议，而是：
+
+1. 自动识别 OS、init system、容器/虚拟化、端口和 NAT 状态。
+2. 支持的 Debian/Ubuntu + systemd 环境完整安装。
+3. 部分支持的环境自动降级，例如 TCP-only NAT 可跳过 Hysteria2。
+4. 不支持的环境安全退出，仍允许 `--dry-run` 预览。
+5. 不假装成功，不乱改系统，不写入不该写的真实路径。
+
+## 平台能力矩阵
+
+可以先运行只读检测，不安装软件、不生成凭据、不重启服务：
+
+```bash
+./install.sh detect
+```
+
+通过 bootstrap 也可以运行：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/main/bootstrap.sh) detect
+```
+
+`detect` 会输出：
+
+- OS 名称和版本、CPU 架构、root 状态。
+- init system：`systemd`、`OpenRC` 或 `unknown`。
+- 虚拟化/容器：LXC、Docker、KVM 或 unknown。
+- 是否支持 systemd、是否可能支持 BBR。
+- `curl`、`unzip`、`openssl` 是否存在。
+- TCP `443`、TCP `2053` 是否被占用。
+- UDP `8443` 本地监听状态和外部映射未知提示。
+- `NAT_MODE` 当前值。
+- `PUBLIC_HOST` 自动检测结果，失败时提示如何手动设置。
+- Reality Vision、Hysteria2、XHTTP + Caddy、BBR 的当前可用状态。
+
 Alpine/OpenRC 只能 dry-run：
 
 ```bash
@@ -96,6 +133,7 @@ INSTALL_XHTTP=true
 ./install.sh hy2
 ./install.sh xhttp
 ./install.sh bbr
+./install.sh detect
 ./install.sh status
 ./install.sh uninstall
 ```

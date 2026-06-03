@@ -1,7 +1,9 @@
 * text=auto
+.gitattributes text eol=lf
 *.sh text eol=lf
 *.bash text eol=lf
 *.bats text eol=lf
+*.md text eol=lf
 tests/mocks/* text eol=lf
+tests/fixtures/* text eol=lf
 templates/* text eol=lf
-

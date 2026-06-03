@@ -27,6 +27,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/lib/status.sh"
 # shellcheck source=lib/uninstall.sh
 . "${SCRIPT_DIR}/lib/uninstall.sh"
+# shellcheck source=lib/detect.sh
+. "${SCRIPT_DIR}/lib/detect.sh"
 
 usage() {
 	cat <<'USAGE'
@@ -38,6 +40,7 @@ Commands:
 	hy2        Render/install Hysteria2 stealth mode
 	xhttp      Render/install VLESS XHTTP with Caddy
 	bbr        Detect and enable BBR when supported
+	detect     Show a read-only platform capability matrix
 	status     Show service status
 	uninstall  Remove installed services; keeps credentials unless --purge
 USAGE
@@ -129,6 +132,9 @@ main() {
 	bbr)
 		detect_supported_os
 		enable_bbr
+		;;
+	detect)
+		show_detect_matrix
 		;;
 	status)
 		show_status
