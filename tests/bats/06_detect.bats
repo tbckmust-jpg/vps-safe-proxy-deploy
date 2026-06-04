@@ -8,7 +8,7 @@ setup() {
 
 @test "detect reports Alpine OpenRC as dry-run only" {
   run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-alpine" \
-    DETECT_INIT_SYSTEM=OpenRC DETECT_IS_ROOT=true DETECT_VIRT=LXC \
+    DETECT_INIT_SYSTEM=OpenRC DETECT_IS_ROOT=true DETECT_VIRT=LXC DETECT_BBR_AVAILABLE=true \
     bash "$REPO_ROOT/install.sh" detect --test-mode
   [ "$status" -eq 0 ]
   [[ "$output" == *"OS: Alpine Linux v3.23"* ]]
@@ -17,13 +17,15 @@ setup() {
   [[ "$output" == *"Reality Vision: dry-run only"* ]]
   [[ "$output" == *"Hysteria2: dry-run only"* ]]
   [[ "$output" == *"XHTTP + Caddy: dry-run only"* ]]
-  [[ "$output" == *"BBR: unsupported in container"* ]]
+  [[ "$output" == *"BBR: kernel supports bbr; applying may be unavailable in container"* ]]
+  [[ "$output" == *"BBR: kernel supports bbr; apply permission unknown in container"* ]]
+  [[ "$output" != *"BBR: supported"* ]]
   [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
 }
 
 @test "detect reports Debian systemd as full install supported" {
   run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-debian" \
-    DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_BBR_STATUS=supported \
+    DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_BBR_AVAILABLE=true \
     DETECT_TCP_443_STATUS=free DETECT_TCP_2053_STATUS=free DETECT_UDP_8443_STATUS="no local listener; external mapping unknown" \
     bash "$REPO_ROOT/install.sh" detect --test-mode
   [ "$status" -eq 0 ]
@@ -36,6 +38,20 @@ setup() {
   [[ "$output" == *"Hysteria2: full install supported"* ]]
   [[ "$output" == *"XHTTP + Caddy: full install supported"* ]]
   [[ "$output" == *"BBR: supported"* ]]
+  [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+}
+
+@test "detect infers LXC from cgroup fixture and avoids simple BBR supported" {
+  run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-alpine" \
+    DETECT_SKIP_SYSTEMD_DETECT_VIRT=true DETECT_PROC_1_CGROUP_FILE="$REPO_ROOT/tests/fixtures/cgroup-lxc" \
+    DETECT_PROC_SELF_CGROUP_FILE="$REPO_ROOT/tests/fixtures/cgroup-lxc" DETECT_DOCKERENV_FILE="$REPO_ROOT/tests/fixtures/missing-dockerenv" \
+    DETECT_PROC_1_ENVIRON_FILE="$REPO_ROOT/tests/fixtures/missing-environ" DETECT_PROC_SELF_STATUS_FILE="$REPO_ROOT/tests/fixtures/missing-status" \
+    DETECT_INIT_SYSTEM=OpenRC DETECT_IS_ROOT=true DETECT_BBR_AVAILABLE=true \
+    bash "$REPO_ROOT/install.sh" detect --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Virtualization: LXC"* ]]
+  [[ "$output" == *"BBR: kernel supports bbr; applying may be unavailable in container"* ]]
+  [[ "$output" != *"BBR: supported"* ]]
   [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
 }
 

@@ -81,38 +81,111 @@ detect_root_status() {
 }
 
 detect_virtualization_type() {
-	local product_name=""
+	local cgroup_file environ_file product_name status_file systemd_container_file
+	local docker_env_file proc_vz_dir virt
 
 	if [[ -n "${DETECT_VIRT:-}" ]]; then
 		printf '%s\n' "$DETECT_VIRT"
 		return 0
 	fi
 
-	if [[ -f /.dockerenv ]]; then
+	if ! is_true "${DETECT_SKIP_SYSTEMD_DETECT_VIRT:-false}" && command -v systemd-detect-virt >/dev/null 2>&1; then
+		virt="$(systemd-detect-virt --container 2>/dev/null || true)"
+		case "$virt" in
+		lxc | lxc-libvirt | systemd-nspawn)
+			printf 'LXC\n'
+			return 0
+			;;
+		docker | podman | containerd)
+			printf 'Docker\n'
+			return 0
+			;;
+		esac
+
+		virt="$(systemd-detect-virt --vm 2>/dev/null || true)"
+		case "$virt" in
+		kvm | qemu | microsoft | oracle | xen | vmware)
+			printf 'KVM\n'
+			return 0
+			;;
+		esac
+	fi
+
+	systemd_container_file="${DETECT_SYSTEMD_CONTAINER_FILE:-/run/systemd/container}"
+	if [[ -r "$systemd_container_file" ]]; then
+		case "$(cat "$systemd_container_file" 2>/dev/null || true)" in
+		lxc | lxc-libvirt | systemd-nspawn)
+			printf 'LXC\n'
+			return 0
+			;;
+		docker | podman | containerd)
+			printf 'Docker\n'
+			return 0
+			;;
+		esac
+	fi
+
+	docker_env_file="${DETECT_DOCKERENV_FILE:-/.dockerenv}"
+	if [[ -f "$docker_env_file" ]]; then
 		printf 'Docker\n'
 		return 0
 	fi
 
-	if [[ -r /proc/1/cgroup ]]; then
-		if grep -Eiq '(^|/)(lxc|libpod-lxc)(/|$)' /proc/1/cgroup; then
+	for cgroup_file in "${DETECT_PROC_1_CGROUP_FILE:-/proc/1/cgroup}" "${DETECT_PROC_SELF_CGROUP_FILE:-/proc/self/cgroup}"; do
+		[[ -r "$cgroup_file" ]] || continue
+		if grep -Eiq '(^|/)(lxc|lxc\.payload|libpod-lxc)(/|$)' "$cgroup_file"; then
 			printf 'LXC\n'
 			return 0
 		fi
-		if grep -Eiq '(docker|containerd|kubepods|libpod)' /proc/1/cgroup; then
+		if grep -Eiq '(docker|containerd|kubepods|libpod)' "$cgroup_file"; then
 			printf 'Docker\n'
 			return 0
 		fi
+	done
+
+	for environ_file in "${DETECT_PROC_1_ENVIRON_FILE:-/proc/1/environ}"; do
+		[[ -r "$environ_file" ]] || continue
+		if tr '\0' '\n' <"$environ_file" 2>/dev/null | grep -Eiq '^container=(lxc|lxc-libvirt|systemd-nspawn)$'; then
+			printf 'LXC\n'
+			return 0
+		fi
+		if tr '\0' '\n' <"$environ_file" 2>/dev/null | grep -Eiq '^container=(docker|podman|containerd)$'; then
+			printf 'Docker\n'
+			return 0
+		fi
+	done
+
+	status_file="${DETECT_PROC_SELF_STATUS_FILE:-/proc/self/status}"
+	if [[ -r "$status_file" ]] && grep -Eq '^NSpid:[[:space:]]+[0-9]+[[:space:]]+[0-9]+' "$status_file"; then
+		printf 'LXC\n'
+		return 0
 	fi
 
-	if [[ -r /sys/class/dmi/id/product_name ]]; then
-		product_name="$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)"
+	proc_vz_dir="${DETECT_PROC_VZ_DIR:-/proc/vz}"
+	if [[ -d "$proc_vz_dir" ]]; then
+		printf 'LXC\n'
+		return 0
+	fi
+
+	if [[ -r "${DETECT_DMI_PRODUCT_NAME_FILE:-/sys/class/dmi/id/product_name}" ]]; then
+		product_name="$(cat "${DETECT_DMI_PRODUCT_NAME_FILE:-/sys/class/dmi/id/product_name}" 2>/dev/null || true)"
 		if [[ "$product_name" == *KVM* || "$product_name" == *QEMU* ]]; then
 			printf 'KVM\n'
+			return 0
+		elif [[ "$product_name" == *Virtual* ]]; then
+			printf 'VPS\n'
 			return 0
 		fi
 	fi
 
 	printf 'unknown\n'
+}
+
+detect_container_virtualization() {
+	case "$1" in
+	LXC | Docker | OpenVZ | lxc | docker | openvz) return 0 ;;
+	*) return 1 ;;
+	esac
 }
 
 detect_systemd_support() {
@@ -213,20 +286,22 @@ detect_public_host_for_matrix() {
 	printf 'unavailable; set PUBLIC_HOST=1.2.3.4 to override\n'
 }
 
-detect_bbr_status() {
-	local virt="$1"
+detect_kernel_bbr_status() {
+	local sysctl_output
 
 	if [[ -n "${DETECT_BBR_STATUS:-}" ]]; then
 		printf '%s\n' "$DETECT_BBR_STATUS"
 		return 0
 	fi
 
-	case "$virt" in
-	LXC | Docker | lxc | docker)
-		printf 'unsupported in container\n'
+	if [[ -n "${DETECT_BBR_AVAILABLE:-}" ]]; then
+		if is_true "$DETECT_BBR_AVAILABLE"; then
+			printf 'supported\n'
+		else
+			printf 'unsupported\n'
+		fi
 		return 0
-		;;
-	esac
+	fi
 
 	if [[ "$(uname -s 2>/dev/null || true)" != "Linux" ]]; then
 		printf 'unknown\n'
@@ -243,15 +318,57 @@ detect_bbr_status() {
 	fi
 
 	if command -v sysctl >/dev/null 2>&1; then
-		if sysctl net.ipv4.tcp_available_congestion_control 2>/dev/null | grep -qw bbr; then
+		sysctl_output="$(sysctl net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+		if printf '%s\n' "$sysctl_output" | grep -qw bbr; then
 			printf 'supported\n'
 		else
-			printf 'unknown\n'
+			printf 'unsupported\n'
 		fi
 		return 0
 	fi
 
 	printf 'unknown\n'
+}
+
+detect_bbr_matrix_status() {
+	local virt="$1"
+	local base_status="$2"
+	local kernel_status
+
+	kernel_status="$(detect_kernel_bbr_status)"
+	if detect_container_virtualization "$virt"; then
+		if [[ "$kernel_status" == "supported" ]]; then
+			printf 'kernel supports bbr; applying may be unavailable in container\n'
+		else
+			printf 'unavailable or unknown in container\n'
+		fi
+	elif [[ "$base_status" == "full install supported" ]]; then
+		if [[ "$kernel_status" == "supported" ]]; then
+			printf 'supported\n'
+		else
+			printf 'unsupported\n'
+		fi
+	else
+		printf '%s\n' "$kernel_status"
+	fi
+}
+
+detect_bbr_scheme_status() {
+	local virt="$1"
+	local matrix_status="$2"
+
+	if detect_container_virtualization "$virt"; then
+		case "$matrix_status" in
+		kernel\ supports\ bbr*)
+			printf 'kernel supports bbr; apply permission unknown in container\n'
+			;;
+		*)
+			printf 'unavailable or unknown in container\n'
+			;;
+		esac
+	else
+		printf '%s\n' "$matrix_status"
+	fi
 }
 
 detect_base_install_status() {
@@ -329,6 +446,7 @@ detect_xhttp_status() {
 
 show_detect_matrix() {
 	local init_system is_root virt arch systemd_supported bbr_status
+	local bbr_scheme_status
 	local tcp443_status tcp2053_status udp8443_status public_host_result base_status
 
 	detect_load_os_info
@@ -337,12 +455,13 @@ show_detect_matrix() {
 	virt="$(detect_virtualization_type)"
 	arch="$(uname -m 2>/dev/null || printf 'unknown')"
 	systemd_supported="$(detect_systemd_support "$init_system")"
-	bbr_status="$(detect_bbr_status "$virt")"
 	tcp443_status="$(detect_tcp_port_status 443)"
 	tcp2053_status="$(detect_tcp_port_status 2053)"
 	udp8443_status="$(detect_udp_port_status 8443)"
 	public_host_result="$(detect_public_host_for_matrix)"
 	base_status="$(detect_base_install_status "$init_system" "$is_root" "$systemd_supported")"
+	bbr_status="$(detect_bbr_matrix_status "$virt" "$base_status")"
+	bbr_scheme_status="$(detect_bbr_scheme_status "$virt" "$bbr_status")"
 
 	cat <<EOF
 Capability Matrix
@@ -354,7 +473,7 @@ Root: ${is_root}
 Virtualization: ${virt}
 Architecture: ${arch}
 Systemd supported: ${systemd_supported}
-BBR possible: ${bbr_status}
+BBR: ${bbr_status}
 curl: $(detect_command_status curl)
 unzip: $(detect_command_status unzip)
 openssl: $(detect_command_status openssl)
@@ -368,6 +487,6 @@ Scheme Status
 Reality Vision: $(detect_reality_status "$base_status" "$tcp443_status")
 Hysteria2: $(detect_hy2_status "$base_status" "$udp8443_status")
 XHTTP + Caddy: $(detect_xhttp_status "$base_status" "$tcp2053_status")
-BBR: ${bbr_status}
+BBR: ${bbr_scheme_status}
 EOF
 }

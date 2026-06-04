@@ -65,14 +65,16 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-
 
 - OS 名称和版本、CPU 架构、root 状态。
 - init system：`systemd`、`OpenRC` 或 `unknown`。
-- 虚拟化/容器：LXC、Docker、KVM 或 unknown。
-- 是否支持 systemd、是否可能支持 BBR。
+- 虚拟化/容器：LXC、Docker、KVM/VPS 或 unknown。容器检测是 best-effort，只使用只读信号，无法保证所有商家环境都能识别。
+- 是否支持 systemd、内核是否支持 BBR，以及当前环境是否可能有权限应用 BBR。
 - `curl`、`unzip`、`openssl` 是否存在。
 - TCP `443`、TCP `2053` 是否被占用。
 - UDP `8443` 本地监听状态和外部映射未知提示。
 - `NAT_MODE` 当前值。
 - `PUBLIC_HOST` 自动检测结果，失败时提示如何手动设置。
 - Reality Vision、Hysteria2、XHTTP + Caddy、BBR 的当前可用状态。
+
+在 LXC/Docker 等容器里，即使宿主内核显示支持 BBR，容器内也可能没有权限写入 sysctl。`detect` 会显示为“内核支持，但容器内应用权限未知”，而不是直接承诺 BBR 可完整开启。
 
 Alpine/OpenRC 只能 dry-run：
 
