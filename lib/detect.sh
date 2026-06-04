@@ -83,6 +83,7 @@ detect_root_status() {
 detect_virtualization_type() {
 	local cgroup_file environ_file product_name status_file systemd_container_file
 	local docker_env_file proc_vz_dir virt
+	local -a environ_files
 
 	if [[ -n "${DETECT_VIRT:-}" ]]; then
 		printf '%s\n' "$DETECT_VIRT"
@@ -143,7 +144,8 @@ detect_virtualization_type() {
 		fi
 	done
 
-	for environ_file in "${DETECT_PROC_1_ENVIRON_FILE:-/proc/1/environ}"; do
+	environ_files=("${DETECT_PROC_1_ENVIRON_FILE:-/proc/1/environ}" "${DETECT_PROC_SELF_ENVIRON_FILE:-/proc/self/environ}")
+	for environ_file in "${environ_files[@]}"; do
 		[[ -r "$environ_file" ]] || continue
 		if tr '\0' '\n' <"$environ_file" 2>/dev/null | grep -Eiq '^container=(lxc|lxc-libvirt|systemd-nspawn)$'; then
 			printf 'LXC\n'
