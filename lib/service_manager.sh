@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
 require_systemd_service_manager() {
+	if is_test_mode && command -v systemctl >/dev/null 2>&1; then
+		return 0
+	fi
+
 	detect_platform
 	if [[ "${SERVICE_MANAGER:-unknown}" != "systemd" ]]; then
 		die "systemd service manager is required for real installation; detected ${SERVICE_MANAGER:-unknown}"
@@ -49,6 +53,11 @@ service_disable_now() {
 		return 0
 	fi
 
+	if is_test_mode && command -v systemctl >/dev/null 2>&1; then
+		systemctl disable --now "$service"
+		return 0
+	fi
+
 	if [[ "${SERVICE_MANAGER:-}" != "systemd" ]]; then
 		detect_platform
 	fi
@@ -63,6 +72,11 @@ service_disable_now() {
 
 service_status() {
 	local service="$1"
+
+	if is_test_mode && command -v systemctl >/dev/null 2>&1; then
+		systemctl --no-pager --full status "$service" || true
+		return 0
+	fi
 
 	if [[ "${SERVICE_MANAGER:-}" != "systemd" ]]; then
 		detect_platform
