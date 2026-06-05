@@ -13,6 +13,16 @@ enable_bbr() {
 		return 0
 	fi
 
+	if is_test_mode; then
+		kernel_bbr_status="$(platform_kernel_bbr_status)"
+		if [[ "$kernel_bbr_status" != "supported" ]]; then
+			warn "kernel does not report BBR support; skipping"
+		else
+			log "test-mode: would apply BBR sysctl settings"
+		fi
+		return 0
+	fi
+
 	detect_platform
 	if [[ "${IS_CONTAINER:-no}" == "yes" ]]; then
 		warn "container environment detected (${VIRT_TYPE}); BBR sysctl changes may be unavailable; skipping automatic BBR apply"
