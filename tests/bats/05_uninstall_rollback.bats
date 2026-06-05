@@ -126,6 +126,28 @@ debug_failure_context() {
   [ "$status" -eq 0 ]
 }
 
+@test "credentials helpers restore caller umask" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    before=\"\$(umask)\"
+    secure_credentials_file
+    after_secure=\"\$(umask)\"
+    begin_credentials_regeneration
+    after_regen=\"\$(umask)\"
+    [[ \"\$before\" == \"\$after_secure\" ]]
+    [[ \"\$before\" == \"\$after_regen\" ]]
+  "
+  [ "$status" -eq 0 ]
+}
+
 @test "all mocks record calls and expose failure controls" {
   run bash -c "
     set -euo pipefail

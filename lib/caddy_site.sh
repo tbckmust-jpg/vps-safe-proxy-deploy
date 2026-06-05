@@ -40,6 +40,8 @@ render_caddy_site() {
 
 	mkdir -p "$CADDY_SITE_DIR"
 	render_template "${PROJECT_ROOT}/templates/fake-site-index.html.tpl" "${CADDY_SITE_DIR}/index.html"
+	chmod 755 "$CADDY_SITE_DIR" 2>/dev/null || true
+	chmod 644 "${CADDY_SITE_DIR}/index.html" 2>/dev/null || true
 	render_template "${PROJECT_ROOT}/templates/Caddyfile.tpl" "$target"
 }
 

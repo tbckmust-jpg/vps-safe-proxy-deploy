@@ -148,7 +148,7 @@ apply_default_config() {
 }
 
 configure_runtime_paths() {
-	local default_caddy_config_file
+	local default_caddy_config_file default_caddy_site_dir
 
 	if is_simulation; then
 		mkdir -p "$TEST_TMP_DIR"
@@ -164,6 +164,7 @@ configure_runtime_paths() {
 		SYSTEMD_DIR="${SYSTEMD_DIR:-${ETC_DIR}/systemd/system}"
 		SYSCTL_BBR_FILE="${SYSCTL_BBR_FILE:-${ETC_DIR}/sysctl.d/99-vps-oneclick-bbr.conf}"
 		default_caddy_config_file="${ETC_DIR}/caddy/Caddyfile"
+		default_caddy_site_dir="${APP_DATA_DIR:-${ROOT_DIR}/vps-oneclick}/site"
 	else
 		ROOT_DIR="${ROOT_DIR:-/root/vps-oneclick}"
 		ETC_DIR="${ETC_DIR:-/usr/local/etc}"
@@ -176,6 +177,7 @@ configure_runtime_paths() {
 		SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 		SYSCTL_BBR_FILE="${SYSCTL_BBR_FILE:-/etc/sysctl.d/99-vps-oneclick-bbr.conf}"
 		default_caddy_config_file="/etc/caddy/Caddyfile"
+		default_caddy_site_dir="/var/www/vps-oneclick/site"
 	fi
 
 	APP_DATA_DIR="${APP_DATA_DIR:-$(dirname "$CREDENTIALS_FILE")}"
@@ -185,7 +187,7 @@ configure_runtime_paths() {
 	HY2_CONFIG_FILE="${HY2_CONFIG_FILE:-${ETC_DIR}/hysteria/hysteria-server.yaml}"
 	HY2_CLIENT_CONFIG_FILE="${HY2_CLIENT_CONFIG_FILE:-${RENDER_DIR}/hysteria-client.yaml}"
 	CADDY_CONFIG_FILE="${CADDY_CONFIG_FILE:-${default_caddy_config_file}}"
-	CADDY_SITE_DIR="${CADDY_SITE_DIR:-${APP_DATA_DIR}/site}"
+	CADDY_SITE_DIR="${CADDY_SITE_DIR:-${default_caddy_site_dir}}"
 	CADDY_RENDERED_CONFIG_FILE="${CADDY_RENDERED_CONFIG_FILE:-${RENDER_DIR}/Caddyfile}"
 
 	if is_simulation; then
@@ -352,14 +354,18 @@ url_encode() {
 }
 
 secure_credentials_file() {
+	local old_umask
+
 	mkdir -p "$(dirname "$CREDENTIALS_FILE")"
+	old_umask="$(umask)"
 	umask 077
 	touch "$CREDENTIALS_FILE"
+	umask "$old_umask"
 	chmod 600 "$CREDENTIALS_FILE"
 }
 
 begin_credentials_regeneration() {
-	local backup_path timestamp
+	local backup_path timestamp old_umask
 
 	mkdir -p "$(dirname "$CREDENTIALS_FILE")" "$BACKUP_DIR"
 	if [[ -s "$CREDENTIALS_FILE" ]]; then
@@ -370,8 +376,10 @@ begin_credentials_regeneration() {
 		log "credentials backup created before regeneration"
 	fi
 
+	old_umask="$(umask)"
 	umask 077
 	: >"$CREDENTIALS_FILE"
+	umask "$old_umask"
 	chmod 600 "$CREDENTIALS_FILE"
 	log "credentials regenerated"
 }

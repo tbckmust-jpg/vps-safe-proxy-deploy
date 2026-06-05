@@ -13,7 +13,7 @@ setup() {
     NAT_MODE REALITY_EXTERNAL_PORT HY2_EXTERNAL_PORT XHTTP_EXTERNAL_PORT \
     INSTALL_REALITY INSTALL_HY2 INSTALL_XHTTP HY2_UDP_MAPPED \
     XHTTP_INTERNAL_HOST XHTTP_INTERNAL_PORT MASQUERADE_MODE MASQUERADE_PROXY_URL \
-    ROOT_DIR ETC_DIR LOG_DIR CREDENTIALS_FILE XRAY_CONFIG_FILE HY2_CONFIG_FILE CADDY_CONFIG_FILE BACKUP_DIR \
+    ROOT_DIR ETC_DIR LOG_DIR CREDENTIALS_FILE XRAY_CONFIG_FILE HY2_CONFIG_FILE CADDY_CONFIG_FILE CADDY_SITE_DIR BACKUP_DIR \
     ENABLE_BBR ENABLE_FIREWALL XRAY_VERSION HY2_VERSION BIN_DIR SYSTEMD_DIR SYSCTL_BBR_FILE; do
     grep -q "^${name}=" "$REPO_ROOT/config.env.example"
   done
@@ -75,6 +75,20 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "real mode defaults Caddy site outside root home" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    DRY_RUN=false
+    TEST_MODE=false
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    apply_default_config
+    configure_runtime_paths
+    [[ \"\$CADDY_SITE_DIR\" == /var/www/vps-oneclick/site ]]
+  "
+  [ "$status" -eq 0 ]
+}
+
 @test "test mode keeps Caddyfile redirected under tests tmp" {
   run bash -c "
     set -euo pipefail
@@ -87,6 +101,7 @@ setup() {
     apply_default_config
     configure_runtime_paths
     [[ \"\$CADDY_CONFIG_FILE\" == \"\$PROJECT_ROOT/tests/tmp/etc/caddy/Caddyfile\" ]]
+    [[ \"\$CADDY_SITE_DIR\" == \"\$PROJECT_ROOT/tests/tmp/root/vps-oneclick/site\" ]]
   "
   [ "$status" -eq 0 ]
 }
