@@ -58,6 +58,7 @@ install_xray_core() {
 	install_system_dependencies || return 1
 
 	local arch asset version_path archive tmp_dir
+	tmp_dir=""
 	arch="$(xray_asset_arch)"
 	asset="Xray-linux-${arch}.zip"
 
@@ -67,13 +68,22 @@ install_xray_core() {
 		version_path="download/${XRAY_VERSION}"
 	fi
 
-	tmp_dir="$(mktemp -d)"
+	tmp_dir="$(mktemp -d)" || return 1
 	archive="${tmp_dir}/${asset}"
-	trap 'rm -rf "$tmp_dir"' RETURN
 
-	curl -fsSL "https://github.com/XTLS/Xray-core/releases/${version_path}/${asset}" -o "$archive" || return 1
-	unzip -o "$archive" xray -d "$tmp_dir" >/dev/null || return 1
-	install -m 0755 "${tmp_dir}/xray" "${BIN_DIR}/xray" || return 1
+	if ! curl -fsSL "https://github.com/XTLS/Xray-core/releases/${version_path}/${asset}" -o "$archive"; then
+		cleanup_tmp_dir "$tmp_dir"
+		return 1
+	fi
+	if ! unzip -o "$archive" xray -d "$tmp_dir" >/dev/null; then
+		cleanup_tmp_dir "$tmp_dir"
+		return 1
+	fi
+	if ! install -m 0755 "${tmp_dir}/xray" "${BIN_DIR}/xray"; then
+		cleanup_tmp_dir "$tmp_dir"
+		return 1
+	fi
+	cleanup_tmp_dir "$tmp_dir"
 	mkdir -p "$(dirname "$XRAY_CONFIG_FILE")" "$LOG_DIR"
 
 	unit_file="${SYSTEMD_DIR}/xray.service"

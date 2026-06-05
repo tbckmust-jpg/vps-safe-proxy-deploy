@@ -284,3 +284,5 @@ Real installation logs are written to:
 Logs include stage start/success/failure and the final summary. They must not include credentials, UUIDs, private keys, passwords, or complete node links.
 
 `detect` treats ports owned by this project as managed rather than as unknown conflicts. For example, TCP 443 held by the project Xray service with the project Reality config is reported as installed/managed. A port held by an unknown process is still reported as a conflict.
+
+When `HY2_DOMAIN` is empty, Hysteria2 uses self-signed certificate mode and camouflage completeness is lower. OpenSSL certificate generation progress is suppressed from terminal output; failures are reported with a short safe error.

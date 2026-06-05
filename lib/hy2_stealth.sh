@@ -17,6 +17,7 @@ install_hysteria2_core() {
 	install_system_dependencies || return 1
 
 	local arch version_path url tmp_file unit_file
+	tmp_file=""
 	arch="$(hy2_asset_arch)"
 
 	if [[ "$HY2_VERSION" == "latest" ]]; then
@@ -26,15 +27,22 @@ install_hysteria2_core() {
 	fi
 
 	url="https://github.com/apernet/hysteria/releases/${version_path}/hysteria-linux-${arch}"
-	tmp_file="$(mktemp)"
-	trap 'rm -f "$tmp_file"' RETURN
+	tmp_file="$(mktemp)" || return 1
 
-	curl -fsSL "$url" -o "$tmp_file" || return 1
-	install -m 0755 "$tmp_file" "${BIN_DIR}/hysteria" || return 1
+	if ! curl -fsSL "$url" -o "$tmp_file"; then
+		cleanup_tmp_file "$tmp_file"
+		return 1
+	fi
+
+	if ! install -m 0755 "$tmp_file" "${BIN_DIR}/hysteria"; then
+		cleanup_tmp_file "$tmp_file"
+		return 1
+	fi
+	cleanup_tmp_file "$tmp_file"
 	mkdir -p "$(dirname "$HY2_CONFIG_FILE")" "$LOG_DIR"
 
 	unit_file="${SYSTEMD_DIR}/hysteria-server.service"
-	write_systemd_unit "$unit_file" "[Unit]
+	if ! write_systemd_unit "$unit_file" "[Unit]
 Description=Hysteria2 Server
 After=network-online.target
 Wants=network-online.target
@@ -47,7 +55,9 @@ RestartSec=5s
 LimitNOFILE=1048576
 
 [Install]
-WantedBy=multi-user.target" || return 1
+WantedBy=multi-user.target"; then
+		return 1
+	fi
 	service_enable hysteria-server || return 1
 }
 
@@ -81,11 +91,14 @@ ensure_hy2_self_signed_cert() {
 		return 0
 	fi
 
-	openssl req -x509 -newkey rsa:2048 -nodes \
+	if ! openssl req -x509 -newkey rsa:2048 -nodes \
 		-keyout "$HY2_KEY_FILE" \
 		-out "$HY2_CERT_FILE" \
 		-days 365 \
-		-subj "/CN=${HY2_DOMAIN}"
+		-subj "/CN=${HY2_DOMAIN}" >/dev/null 2>&1; then
+		warn "failed to generate Hysteria2 self-signed certificate"
+		return 1
+	fi
 	chmod 600 "$HY2_KEY_FILE"
 }
 

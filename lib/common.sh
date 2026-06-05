@@ -37,6 +37,20 @@ write_install_log() {
 	printf '%s [%s] %s\n' "$timestamp" "$level" "$message" >>"$log_file" 2>/dev/null || true
 }
 
+cleanup_tmp_file() {
+	local tmp_file="${1:-}"
+
+	[[ -n "$tmp_file" ]] || return 0
+	rm -f "$tmp_file" 2>/dev/null || true
+}
+
+cleanup_tmp_dir() {
+	local tmp_dir="${1:-}"
+
+	[[ -n "$tmp_dir" ]] || return 0
+	rm -rf "$tmp_dir" 2>/dev/null || true
+}
+
 is_true() {
 	case "${1:-}" in
 	true | TRUE | 1 | yes | YES | y | Y) return 0 ;;

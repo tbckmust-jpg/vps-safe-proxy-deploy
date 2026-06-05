@@ -362,6 +362,71 @@ debug_failure_context() {
   [[ "$output" != *"://"* ]]
 }
 
+@test "HY2 self-signed warnings do not stop all before XHTTP" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 XHTTP_DOMAIN=cdn.example.com NAT_MODE=true HY2_UDP_MAPPED=false \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"HY2_DOMAIN is empty"* ]]
+  [[ "$output" == *"NAT_MODE=true but HY2_UDP_MAPPED is not true"* ]]
+  [[ "$output" == *"HY2 success"* ]]
+  [[ "$output" == *"XHTTP success"* ]]
+  [[ "$output" == *"Hysteria2: installed"* ]]
+  [[ "$output" == *"XHTTP+Caddy: installed"* ]]
+  grep -q 'hysteria version' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'caddy version' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart caddy' "$REPO_ROOT/tests/tmp/mock-calls.log"
+}
+
+@test "HY2 cleanup does not keep unsafe RETURN traps" {
+  grep -q 'local tmp_file="${1:-}"' "$REPO_ROOT/lib/common.sh"
+  ! grep -R 'trap .*tmp_file.*RETURN' "$REPO_ROOT/lib"
+}
+
+@test "HY2 self-signed openssl progress is quiet" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=false
+    DRY_RUN=false
+    LOG_DIR=\"\$PROJECT_ROOT/tests/tmp/log\"
+    INSTALL_LOG_FILE=\"\$LOG_DIR/vps-oneclick-install.log\"
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/hy2_stealth.sh\"
+    openssl() {
+      local cert=''
+      local key=''
+      printf '++++++ SHOULD_NOT_PRINT\\n' >&2
+      while [ \"\$#\" -gt 0 ]; do
+        case \"\$1\" in
+        -keyout)
+          key=\"\$2\"
+          shift 2
+          ;;
+        -out)
+          cert=\"\$2\"
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+        esac
+      done
+      printf '%s\\n' TEST_CERT >\"\$cert\"
+      printf '%s\\n' TEST_KEY >\"\$key\"
+    }
+    HY2_TLS_MODE=self-signed
+    HY2_DOMAIN=203.0.113.10
+    HY2_CERT_FILE=\"\$PROJECT_ROOT/tests/tmp/certs/hy2.crt\"
+    HY2_KEY_FILE=\"\$PROJECT_ROOT/tests/tmp/certs/hy2.key\"
+    ensure_hy2_self_signed_cert
+    [ -f \"\$HY2_CERT_FILE\" ]
+    [ -f \"\$HY2_KEY_FILE\" ]
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"SHOULD_NOT_PRINT"* ]]
+  [[ "$output" != *"++++++"* ]]
+}
+
 @test "caddy validate failure restores previous Caddyfile" {
   run bash -c "
     set -euo pipefail
