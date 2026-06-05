@@ -286,3 +286,5 @@ Logs include stage start/success/failure and the final summary. They must not in
 `detect` treats ports owned by this project as managed rather than as unknown conflicts. For example, TCP 443 held by the project Xray service with the project Reality config is reported as installed/managed. A port held by an unknown process is still reported as a conflict.
 
 When `HY2_DOMAIN` is empty, Hysteria2 uses self-signed certificate mode and camouflage completeness is lower. OpenSSL certificate generation progress is suppressed from terminal output; failures are reported with a short safe error.
+
+On Debian/Ubuntu package installs, Caddy uses `/etc/caddy/Caddyfile`. The installer writes, validates, backs up, and restarts Caddy against that same path. XHTTP/Caddy is marked installed only after Caddy validates, restarts, reports active, listens on `XHTTP_HTTPS_PORT`, and Xray listens on `127.0.0.1:XHTTP_INTERNAL_PORT`.

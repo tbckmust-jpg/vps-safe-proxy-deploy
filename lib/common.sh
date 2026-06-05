@@ -51,6 +51,32 @@ cleanup_tmp_dir() {
 	rm -rf "$tmp_dir" 2>/dev/null || true
 }
 
+tcp_port_listening() {
+	local host="$1"
+	local port="$2"
+	local override_name="MOCK_TCP_${port}_LISTENING"
+	local override_value="${!override_name:-}"
+	local escaped_host ss_output
+
+	if [[ -n "$override_value" ]]; then
+		is_true "$override_value"
+		return $?
+	fi
+
+	if is_test_mode; then
+		return 0
+	fi
+
+	command -v ss >/dev/null 2>&1 || return 1
+	ss_output="$(ss -H -ltn 2>/dev/null || true)"
+	if [[ -n "$host" ]]; then
+		escaped_host="$(printf '%s' "$host" | sed 's/\./\\./g')"
+		printf '%s\n' "$ss_output" | grep -Eq "(^|[[:space:]])${escaped_host}:${port}[[:space:]]"
+	else
+		printf '%s\n' "$ss_output" | grep -Eq "[:.]${port}[[:space:]]"
+	fi
+}
+
 is_true() {
 	case "${1:-}" in
 	true | TRUE | 1 | yes | YES | y | Y) return 0 ;;
@@ -122,6 +148,8 @@ apply_default_config() {
 }
 
 configure_runtime_paths() {
+	local default_caddy_config_file
+
 	if is_simulation; then
 		mkdir -p "$TEST_TMP_DIR"
 		TEST_TMP_DIR="$(cd "$TEST_TMP_DIR" && pwd -P)"
@@ -135,6 +163,7 @@ configure_runtime_paths() {
 		BIN_DIR="${BIN_DIR:-${TEST_TMP_DIR}/bin}"
 		SYSTEMD_DIR="${SYSTEMD_DIR:-${ETC_DIR}/systemd/system}"
 		SYSCTL_BBR_FILE="${SYSCTL_BBR_FILE:-${ETC_DIR}/sysctl.d/99-vps-oneclick-bbr.conf}"
+		default_caddy_config_file="${ETC_DIR}/caddy/Caddyfile"
 	else
 		ROOT_DIR="${ROOT_DIR:-/root/vps-oneclick}"
 		ETC_DIR="${ETC_DIR:-/usr/local/etc}"
@@ -146,6 +175,7 @@ configure_runtime_paths() {
 		BIN_DIR="${BIN_DIR:-/usr/local/bin}"
 		SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 		SYSCTL_BBR_FILE="${SYSCTL_BBR_FILE:-/etc/sysctl.d/99-vps-oneclick-bbr.conf}"
+		default_caddy_config_file="/etc/caddy/Caddyfile"
 	fi
 
 	APP_DATA_DIR="${APP_DATA_DIR:-$(dirname "$CREDENTIALS_FILE")}"
@@ -154,7 +184,7 @@ configure_runtime_paths() {
 	XRAY_XHTTP_CONFIG_FILE="${XRAY_XHTTP_CONFIG_FILE:-${ETC_DIR}/xray/xray-xhttp.json}"
 	HY2_CONFIG_FILE="${HY2_CONFIG_FILE:-${ETC_DIR}/hysteria/hysteria-server.yaml}"
 	HY2_CLIENT_CONFIG_FILE="${HY2_CLIENT_CONFIG_FILE:-${RENDER_DIR}/hysteria-client.yaml}"
-	CADDY_CONFIG_FILE="${CADDY_CONFIG_FILE:-${ETC_DIR}/caddy/Caddyfile}"
+	CADDY_CONFIG_FILE="${CADDY_CONFIG_FILE:-${default_caddy_config_file}}"
 	CADDY_SITE_DIR="${CADDY_SITE_DIR:-${APP_DATA_DIR}/site}"
 	CADDY_RENDERED_CONFIG_FILE="${CADDY_RENDERED_CONFIG_FILE:-${RENDER_DIR}/Caddyfile}"
 

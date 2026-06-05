@@ -13,6 +13,14 @@ if [[ -n "${MOCK_SYSTEMCTL_FAIL_SERVICE:-}" ]]; then
   esac
 fi
 
+if [[ -n "${MOCK_SYSTEMCTL_INACTIVE_SERVICE:-}" ]]; then
+  case " $* " in
+    *" is-active --quiet ${MOCK_SYSTEMCTL_INACTIVE_SERVICE}"*)
+      exit 3
+      ;;
+  esac
+fi
+
 if [[ "${MOCK_SYSTEMCTL_FAIL:-0}" == "1" ]]; then
   case " $* " in
     *" restart "* | *" disable --now "*)

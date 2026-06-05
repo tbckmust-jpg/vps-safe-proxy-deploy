@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+validate_xhttp_runtime() {
+	if ! tcp_port_listening "$XHTTP_INTERNAL_HOST" "$XHTTP_INTERNAL_PORT"; then
+		warn "Xray XHTTP is not listening on ${XHTTP_INTERNAL_HOST}:${XHTTP_INTERNAL_PORT}"
+		return 1
+	fi
+}
+
 install_xhttp_cdn() {
 	ensure_no_port_conflicts
 	prepare_runtime_dirs
@@ -38,6 +45,7 @@ install_xhttp_cdn() {
 	allow_firewall_port "$(effective_export_port "$XHTTP_HTTPS_PORT" "$XHTTP_EXTERNAL_PORT")" tcp
 	stage_xray_config_with_rollback "$rendered_xray_config" "$XRAY_XHTTP_CONFIG_FILE" xray || return 1
 	stage_caddy_config_with_rollback "$CADDY_RENDERED_CONFIG_FILE" || return 1
+	validate_xhttp_runtime || return 1
 	write_xhttp_client_exports
 	credentials_notice
 }

@@ -61,6 +61,36 @@ setup() {
   [[ "$output" == *"must stay under"* ]]
 }
 
+@test "real mode defaults Caddyfile to Debian package path" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    DRY_RUN=false
+    TEST_MODE=false
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    apply_default_config
+    configure_runtime_paths
+    [[ \"\$CADDY_CONFIG_FILE\" == /etc/caddy/Caddyfile ]]
+  "
+  [ "$status" -eq 0 ]
+}
+
+@test "test mode keeps Caddyfile redirected under tests tmp" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    [[ \"\$CADDY_CONFIG_FILE\" == \"\$PROJECT_ROOT/tests/tmp/etc/caddy/Caddyfile\" ]]
+  "
+  [ "$status" -eq 0 ]
+}
+
 @test "Alpine real install exits before requiring PUBLIC_HOST" {
   run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-alpine" \
     bash "$REPO_ROOT/install.sh" all

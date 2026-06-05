@@ -45,6 +45,29 @@ service_restart() {
 	systemctl restart "$service"
 }
 
+service_is_active() {
+	local service="$1"
+
+	if is_dry_run; then
+		return 0
+	fi
+
+	if is_test_mode && command -v systemctl >/dev/null 2>&1; then
+		systemctl is-active --quiet "$service"
+		return $?
+	fi
+
+	if [[ "${SERVICE_MANAGER:-}" != "systemd" ]]; then
+		detect_platform
+	fi
+
+	if [[ "${SERVICE_MANAGER:-unknown}" != "systemd" ]]; then
+		return 1
+	fi
+
+	systemctl is-active --quiet "$service"
+}
+
 service_stop() {
 	local service="$1"
 

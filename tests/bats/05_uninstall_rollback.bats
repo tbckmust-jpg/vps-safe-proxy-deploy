@@ -362,6 +362,35 @@ debug_failure_context() {
   [[ "$output" != *"://"* ]]
 }
 
+@test "all does not mark XHTTP installed when Caddy port is not listening" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 HY2_DOMAIN=hy2.example.com XHTTP_DOMAIN=cdn.example.com EMAIL=me@example.com \
+    MOCK_TCP_2053_LISTENING=false bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -ne 0 ]
+  grep -q 'caddy validate --config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart caddy' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  [[ "$output" == *"Caddy did not start listening on TCP 2053"* ]]
+  [[ "$output" == *"XHTTP+Caddy: failed"* ]]
+  [[ "$output" != *"XHTTP+Caddy: installed"* ]]
+}
+
+@test "XHTTP fails when Caddy service is inactive after restart" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 XHTTP_DOMAIN=cdn.example.com \
+    MOCK_SYSTEMCTL_INACTIVE_SERVICE=caddy bash "$REPO_ROOT/install.sh" xhttp --test-mode
+  [ "$status" -ne 0 ]
+  grep -q 'systemctl is-active --quiet caddy' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  [[ "$output" == *"caddy service is not active after restart"* ]]
+}
+
+@test "XHTTP fails when internal Xray listener is missing" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 XHTTP_DOMAIN=cdn.example.com \
+    MOCK_TCP_10085_LISTENING=false bash "$REPO_ROOT/install.sh" xhttp --test-mode
+  [ "$status" -ne 0 ]
+  grep -q 'xray run -test -confdir' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart xray' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart caddy' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  [[ "$output" == *"Xray XHTTP is not listening on 127.0.0.1:10085"* ]]
+}
+
 @test "HY2 self-signed warnings do not stop all before XHTTP" {
   run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 XHTTP_DOMAIN=cdn.example.com NAT_MODE=true HY2_UDP_MAPPED=false \
     bash "$REPO_ROOT/install.sh" all --test-mode

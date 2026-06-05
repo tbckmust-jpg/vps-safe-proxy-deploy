@@ -60,4 +60,16 @@ stage_caddy_config_with_rollback() {
 		rollback_config "$backup_path" "$CADDY_CONFIG_FILE"
 		return 1
 	fi
+
+	if ! service_is_active caddy; then
+		warn "caddy service is not active after restart; restoring previous Caddyfile"
+		rollback_config "$backup_path" "$CADDY_CONFIG_FILE"
+		return 1
+	fi
+
+	if ! tcp_port_listening "" "$XHTTP_HTTPS_PORT"; then
+		warn "Caddy did not start listening on TCP ${XHTTP_HTTPS_PORT}; restoring previous Caddyfile"
+		rollback_config "$backup_path" "$CADDY_CONFIG_FILE"
+		return 1
+	fi
 }
