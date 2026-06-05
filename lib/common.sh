@@ -18,10 +18,10 @@ warn() {
 }
 
 redact_log_message() {
-	printf '%s' "$*" \
-		| sed -E 's#(vless|hysteria2)://[^[:space:]]+#<redacted-node-link>#g' \
-		| sed -E 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<redacted-uuid>#g' \
-		| sed -E 's#([Pp]rivate[Kk]ey|[Pp]assword|[Pp]asswd|[Ss]ecret|[Tt]oken|[Kk]ey)[[:space:]]*[:=][[:space:]]*[^[:space:]]+#\1=<redacted>#g'
+	printf '%s' "$*" |
+		sed -E 's#(vless|hysteria2)://[^[:space:]]+#<redacted-node-link>#g' |
+		sed -E 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<redacted-uuid>#g' |
+		sed -E 's#([Pp]rivate[Kk]ey|[Pp]assword|[Pp]asswd|[Ss]ecret|[Tt]oken|[Kk]ey)[[:space:]]*[:=][[:space:]]*[^[:space:]]+#\1=<redacted>#g'
 }
 
 write_install_log() {
