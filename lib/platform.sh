@@ -90,6 +90,8 @@ platform_detect_root() {
 		else
 			IS_ROOT="no"
 		fi
+	elif is_test_mode; then
+		IS_ROOT="yes"
 	elif [[ "$(id -u 2>/dev/null || printf '1')" == "0" ]]; then
 		IS_ROOT="yes"
 	else

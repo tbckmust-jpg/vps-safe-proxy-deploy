@@ -6,6 +6,27 @@ setup() {
   mkdir -p "$REPO_ROOT/tests/tmp"
 }
 
+debug_failure_context() {
+  local scheme_re='(vless|hysteria2)'
+  {
+    echo "# status=$status"
+    echo "# output:"
+    printf '%s\n' "$output" \
+      | sed -E "s#${scheme_re}://[^[:space:]]*#<redacted-node-link>#g" \
+      | sed -E 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<redacted-uuid>#g'
+    if [ -f "$REPO_ROOT/tests/tmp/mock-calls.log" ]; then
+      echo "# mock calls:"
+      cat "$REPO_ROOT/tests/tmp/mock-calls.log"
+    fi
+    echo "# generated files:"
+    find "$REPO_ROOT/tests/tmp" -maxdepth 4 -type f ! -name credentials.txt -print | sort
+    if [ -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]; then
+      echo "# credentials file:"
+      ls -l "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+    fi
+  } >&3
+}
+
 @test "xray test failure restores previous config" {
   run bash -c "
     set -euo pipefail
@@ -117,6 +138,9 @@ setup() {
 @test "test-mode all invokes real install path through mocks" {
   run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 HY2_DOMAIN=hy2.example.com XHTTP_DOMAIN=cdn.example.com EMAIL=me@example.com \
     bash "$REPO_ROOT/install.sh" all --test-mode
+  if [ "$status" -ne 0 ]; then
+    debug_failure_context
+  fi
   [ "$status" -eq 0 ]
 
   grep -q 'xray x25519' "$REPO_ROOT/tests/tmp/mock-calls.log"
@@ -159,6 +183,9 @@ setup() {
 @test "BBR unsupported does not interrupt all in test mode" {
   run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 HY2_DOMAIN=hy2.example.com XHTTP_DOMAIN=cdn.example.com EMAIL=me@example.com MOCK_BBR_UNSUPPORTED=1 \
     bash "$REPO_ROOT/install.sh" all --test-mode
+  if [ "$status" -ne 0 ]; then
+    debug_failure_context
+  fi
   [ "$status" -eq 0 ]
   [[ "$output" == *"kernel does not report BBR support; skipping"* ]]
 }
