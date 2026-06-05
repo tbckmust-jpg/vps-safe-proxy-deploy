@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 
+xray_confdir() {
+	dirname "$XRAY_CONFIG_FILE"
+}
+
 xray_systemd_unit_content() {
+	local confdir
+	confdir="$(xray_confdir)"
+
 	cat <<UNIT
 [Unit]
 Description=Xray Service
@@ -12,7 +19,7 @@ User=root
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
-ExecStart=${BIN_DIR}/xray run -confdir $(dirname "$XRAY_CONFIG_FILE")
+ExecStart=${BIN_DIR}/xray run -confdir ${confdir}
 Restart=on-failure
 RestartPreventExitStatus=23
 LimitNPROC=10000
@@ -196,8 +203,71 @@ rollback_xray_unit_after_keygen_failure() {
 }
 
 xray_test_config() {
-	local config_file="$1"
-	xray test -config "$config_file"
+	local input="$1"
+	local confdir config_file mode attempts status
+
+	confdir="$(xray_confdir)"
+	config_file=""
+	mode="config"
+	attempts=""
+
+	if [[ -d "$input" ]]; then
+		mode="confdir"
+		confdir="$input"
+	else
+		config_file="$input"
+		if [[ "$(dirname "$config_file")" == "$confdir" ]]; then
+			mode="confdir"
+		fi
+	fi
+
+	if [[ "$mode" == "confdir" ]]; then
+		xray_test_try attempts "run -test -confdir" xray run -test -confdir "$confdir" && return 0
+	else
+		xray_test_try attempts "run -test -config" xray run -test -config "$config_file" && return 0
+		xray_test_try attempts "run -test -c" xray run -test -c "$config_file" && return 0
+		xray_test_try attempts "test -config" xray test -config "$config_file" && return 0
+	fi
+
+	status="$?"
+	diagnose_xray_config_test_failure "$attempts"
+	return "$status"
+}
+
+xray_test_try() {
+	local attempts_var="$1"
+	local form="$2"
+	shift 2
+	local status current
+
+	if "$@" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	status="$?"
+	warn "xray config test form failed: ${form} (exit ${status})"
+	current="${!attempts_var:-}"
+	if [[ -n "$current" ]]; then
+		printf -v "$attempts_var" '%s; %s=%s' "$current" "$form" "$status"
+	else
+		printf -v "$attempts_var" '%s=%s' "$form" "$status"
+	fi
+	return "$status"
+}
+
+diagnose_xray_config_test_failure() {
+	local attempts="$1"
+	local xray_path version_output version_line
+
+	xray_path="$(command -v xray 2>/dev/null || printf 'not found')"
+	version_output="$(xray version 2>/dev/null || true)"
+	version_line="${version_output%%$'\n'*}"
+	[[ -n "$version_line" ]] || version_line="unknown"
+
+	warn "xray config test failed after trying compatible command forms"
+	warn "xray command path: ${xray_path}"
+	warn "xray version: ${version_line}"
+	warn "attempted xray config test forms: ${attempts:-none}"
 }
 
 stage_xray_config_with_rollback() {

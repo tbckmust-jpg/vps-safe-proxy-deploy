@@ -5,12 +5,48 @@ mock_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "${mock_dir}/tmp"
 printf 'xray %s\n' "$*" >>"${mock_dir}/tmp/mock-calls.log"
 
-if [[ "${MOCK_XRAY_TEST_FAIL:-0}" == "1" ]]; then
+is_config_test=0
+if [[ "${1:-}" == "run" ]]; then
   case " $* " in
-    *" test "*)
+    *" -test "*)
+      is_config_test=1
+      ;;
+  esac
+elif [[ "${1:-}" == "test" ]]; then
+  is_config_test=1
+fi
+
+if [[ "${MOCK_XRAY_LEGACY_TEST_UNSUPPORTED:-0}" == "1" && "${1:-}" == "test" ]]; then
+  printf 'xray test: unknown command\n' >&2
+  exit 2
+fi
+
+if [[ "${MOCK_XRAY_RUN_CONFDIR_FAIL:-0}" == "1" && "${1:-}" == "run" ]]; then
+  case " $* " in
+    *" -test "*" -confdir "*)
       exit 1
       ;;
   esac
+fi
+
+if [[ "${MOCK_XRAY_RUN_CONFIG_FAIL:-0}" == "1" && "${1:-}" == "run" ]]; then
+  case " $* " in
+    *" -test "*" -config "*)
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ "${MOCK_XRAY_RUN_SHORT_CONFIG_FAIL:-0}" == "1" && "${1:-}" == "run" ]]; then
+  case " $* " in
+    *" -test "*" -c "*)
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ "${MOCK_XRAY_TEST_FAIL:-0}" == "1" && "$is_config_test" == "1" ]]; then
+  exit 1
 fi
 
 if [[ "${1:-}" == "x25519" ]]; then

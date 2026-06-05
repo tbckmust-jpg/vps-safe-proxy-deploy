@@ -270,3 +270,5 @@ tail -n 160 /var/log/vps-oneclick-install.log
 ```
 
 Reality key generation uses `xray x25519` in real mode. Newer Xray versions may print the public key as either `PublicKey:` or `Password (PublicKey):`; both labels are supported. If parsing fails, the installer prints only safe diagnostics such as the xray command path, xray version, and output labels. It never prints the generated private key or public key.
+
+Before restarting Xray, the installer validates the same configuration directory used by the systemd unit. Newer Xray CLI forms such as `xray run -test -confdir` and `xray run -test -config` are tried before the legacy `xray test` form. The installer records only command forms and exit codes on failure; it never prints configuration file contents.

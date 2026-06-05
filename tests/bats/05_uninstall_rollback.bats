@@ -44,13 +44,26 @@ debug_failure_context() {
     prepare_runtime_dirs
     mkdir -p \"\$ETC_DIR/xray\"
     printf old >\"\$XRAY_CONFIG_FILE\"
-    printf new >\"\$ETC_DIR/xray/rendered.json\"
-    MOCK_XRAY_TEST_FAIL=1 stage_xray_config_with_rollback \"\$ETC_DIR/xray/rendered.json\" \"\$XRAY_CONFIG_FILE\" xray
+    printf SENSITIVE_CONFIG_MARKER >\"\$ETC_DIR/xray/rendered.json\"
+    export MOCK_XRAY_TEST_FAIL=1
+    stage_xray_config_with_rollback \"\$ETC_DIR/xray/rendered.json\" \"\$XRAY_CONFIG_FILE\" xray
   "
   [ "$status" -ne 0 ]
   grep -q '^old$' "$REPO_ROOT/tests/tmp/etc/xray/config.json"
   [ -d "$REPO_ROOT/tests/tmp/backups" ]
-  grep -q 'xray test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'xray run -test -confdir' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  [[ "$output" == *"attempted xray config test forms"* ]]
+  [[ "$output" != *"SENSITIVE_CONFIG_MARKER"* ]]
+}
+
+@test "xray config test failure stops before credentials are generated" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 MOCK_XRAY_TEST_FAIL=1 \
+    bash "$REPO_ROOT/install.sh" reality --test-mode
+  [ "$status" -ne 0 ]
+  [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+  [ ! -e "$REPO_ROOT/tests/tmp/etc/xray/xray-reality-vision.json" ]
+  grep -q 'xray run -test -confdir' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  [[ "$output" == *"xray config test failed; restoring previous config"* ]]
 }
 
 @test "systemctl restart failure restores previous config" {
@@ -119,20 +132,104 @@ debug_failure_context() {
     PATH='$REPO_ROOT/tests/mocks':\"\$PATH\"
     rm -f '$REPO_ROOT/tests/tmp/mock-calls.log'
     systemctl restart xray
-    xray test -config '$REPO_ROOT/tests/tmp/example.json'
+    xray run -test -confdir '$REPO_ROOT/tests/tmp/xray'
+    xray run -test -config '$REPO_ROOT/tests/tmp/example.json'
     hysteria server --config '$REPO_ROOT/tests/tmp/hy2.yaml'
     caddy validate --config '$REPO_ROOT/tests/tmp/Caddyfile'
     ufw allow 443/tcp
   "
   [ "$status" -eq 0 ]
   grep -q 'systemctl restart xray' "$REPO_ROOT/tests/tmp/mock-calls.log"
-  grep -q 'xray test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'xray run -test -confdir' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'xray run -test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
   grep -q 'hysteria server --config' "$REPO_ROOT/tests/tmp/mock-calls.log"
   grep -q 'caddy validate --config' "$REPO_ROOT/tests/tmp/mock-calls.log"
   grep -q 'ufw allow 443/tcp' "$REPO_ROOT/tests/tmp/mock-calls.log"
 
   run bash -c "PATH='$REPO_ROOT/tests/mocks':\"\$PATH\" MOCK_CADDY_FAIL=1 caddy validate"
   [ "$status" -ne 0 ]
+}
+
+@test "xray config test supports run test config form" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
+    . \"\$PROJECT_ROOT/lib/xray_install.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    prepare_runtime_dirs
+    mkdir -p \"\$TEST_TMP_DIR/standalone\"
+    printf '{}' >\"\$TEST_TMP_DIR/standalone/config.json\"
+    export MOCK_XRAY_LEGACY_TEST_UNSUPPORTED=1
+    xray_test_config \"\$TEST_TMP_DIR/standalone/config.json\"
+  "
+  [ "$status" -eq 0 ]
+  grep -q 'xray run -test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  ! grep -q 'xray test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+}
+
+@test "xray config test falls back to short config form" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
+    . \"\$PROJECT_ROOT/lib/xray_install.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    prepare_runtime_dirs
+    mkdir -p \"\$TEST_TMP_DIR/standalone\"
+    printf '{}' >\"\$TEST_TMP_DIR/standalone/config.json\"
+    export MOCK_XRAY_RUN_CONFIG_FAIL=1
+    xray_test_config \"\$TEST_TMP_DIR/standalone/config.json\"
+  "
+  [ "$status" -eq 0 ]
+  grep -q 'xray run -test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'xray run -test -c' "$REPO_ROOT/tests/tmp/mock-calls.log"
+}
+
+@test "new xray without legacy test subcommand passes through run test confdir" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 MOCK_XRAY_LEGACY_TEST_UNSUPPORTED=1 \
+    bash "$REPO_ROOT/install.sh" reality --test-mode
+  [ "$status" -eq 0 ]
+  grep -q 'xray run -test -confdir' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  ! grep -q 'xray test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+}
+
+@test "systemd ExecStart and xray config test use same confdir" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
+    . \"\$PROJECT_ROOT/lib/xray_install.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    prepare_runtime_dirs
+    xray_systemd_unit_content >\"\$TEST_TMP_DIR/xray.service\"
+    printf new >\"\$ETC_DIR/xray/rendered.json\"
+    stage_xray_config_with_rollback \"\$ETC_DIR/xray/rendered.json\" \"\$XRAY_REALITY_CONFIG_FILE\" xray
+    grep -q \"ExecStart=.* -confdir \$ETC_DIR/xray\" \"\$TEST_TMP_DIR/xray.service\"
+    grep -q \"xray run -test -confdir \$ETC_DIR/xray\" \"\$TEST_TMP_DIR/mock-calls.log\"
+  "
+  [ "$status" -eq 0 ]
 }
 
 @test "xray x25519 PublicKey output parses without printing keys" {
@@ -233,7 +330,7 @@ debug_failure_context() {
   [ "$status" -eq 0 ]
 
   grep -q 'xray x25519' "$REPO_ROOT/tests/tmp/mock-calls.log"
-  grep -q 'xray test -config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'xray run -test -confdir' "$REPO_ROOT/tests/tmp/mock-calls.log"
   grep -q 'hysteria version' "$REPO_ROOT/tests/tmp/mock-calls.log"
   grep -q 'caddy version' "$REPO_ROOT/tests/tmp/mock-calls.log"
   grep -q 'caddy validate --config' "$REPO_ROOT/tests/tmp/mock-calls.log"
