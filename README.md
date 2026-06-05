@@ -76,6 +76,19 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-
 
 在 LXC/Docker 等容器里，即使宿主内核显示支持 BBR，容器内也可能没有权限写入 sysctl。`detect` 会显示为“内核支持，但容器内应用权限未知”，而不是直接承诺 BBR 可完整开启。
 
+## 平台支持策略
+
+`full install candidate` 不等于 100% 保证成功。它只表示当前机器看起来满足真实安装的基础条件：root、systemd、受支持 CPU 架构、受支持包管理器，并且对应方案的本地端口没有明显冲突。真实可用仍取决于系统软件源、systemd 行为、架构、端口、防火墙、服务商网络、NAT 转发和 UDP 映射。
+
+完整安装的主目标是带 systemd 的 Linux VPS。当前平台适配器会识别：
+
+- Debian 11/12/13、Ubuntu 20.04/22.04/24.04：`apt`
+- Fedora、Rocky Linux、AlmaLinux、RHEL、CentOS Stream：`dnf` 或 `yum`
+- Arch Linux：`pacman`
+- openSUSE：`zypper`
+
+这些扩展系统属于候选支持，需要真实 VPS 测试反馈继续收紧。Alpine/OpenRC 默认只支持 `detect` 和 `--dry-run`，真实安装会安全退出。LXC/容器里 BBR、防火墙和低层网络能力可能受限；NAT VPS 仍需要在服务商面板设置端口映射；Hysteria2 需要 UDP 可用；无域名也可以生成降级配置，但 HY2/XHTTP 的伪装完整度会下降。
+
 Alpine/OpenRC 只能 dry-run：
 
 ```bash
@@ -198,7 +211,7 @@ Hysteria2 默认使用 UDP `8443`。脚本会提示 UDP 可用性无法完全本
 
 - Xray-core：XTLS/Xray-core GitHub release。
 - Hysteria2：apernet/hysteria GitHub release。
-- Caddy：官方 Cloudsmith Caddy stable apt 仓库。
+- Caddy：优先通过当前平台包管理器安装 `caddy` 包；不同发行版的软件源质量需要真实测试确认。
 
 不安装 Web 面板，不开放管理端口。
 

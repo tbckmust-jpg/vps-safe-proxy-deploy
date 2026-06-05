@@ -1,202 +1,20 @@
 #!/usr/bin/env bash
 
-detect_command_status() {
-	if command -v "$1" >/dev/null 2>&1; then
-		printf 'present\n'
-	else
-		printf 'missing\n'
-	fi
-}
+detect_dependency_status() {
+	local command_name="$1"
 
-detect_load_os_info() {
-	local os_release_file="${OS_RELEASE_FILE:-/etc/os-release}"
-	local ID=""
-	local NAME=""
-	local PRETTY_NAME=""
-	local VERSION_ID=""
-
-	DETECT_OS_ID="unknown"
-	DETECT_OS_NAME="unknown"
-	DETECT_OS_PRETTY="unknown"
-	DETECT_OS_VERSION="unknown"
-
-	if [[ -r "$os_release_file" ]]; then
-		# shellcheck source=/dev/null
-		. "$os_release_file"
-		DETECT_OS_ID="${ID:-unknown}"
-		DETECT_OS_NAME="${NAME:-unknown}"
-		DETECT_OS_PRETTY="${PRETTY_NAME:-${NAME:-unknown} ${VERSION_ID:-unknown}}"
-		DETECT_OS_VERSION="${VERSION_ID:-unknown}"
-	fi
-}
-
-detect_supported_release() {
-	case "${DETECT_OS_ID:-unknown}:${DETECT_OS_VERSION:-unknown}" in
-	debian:11 | debian:12 | ubuntu:22.04 | ubuntu:24.04) return 0 ;;
-	*) return 1 ;;
-	esac
-}
-
-detect_init_system_name() {
-	if [[ -n "${DETECT_INIT_SYSTEM:-}" ]]; then
-		printf '%s\n' "$DETECT_INIT_SYSTEM"
-		return 0
-	fi
-
-	if [[ -d /run/systemd/system ]]; then
-		printf 'systemd\n'
-		return 0
-	fi
-
-	if [[ -d /run/openrc ]] || command -v rc-service >/dev/null 2>&1; then
-		printf 'OpenRC\n'
-		return 0
-	fi
-
-	if [[ -r /proc/1/comm ]]; then
-		case "$(cat /proc/1/comm 2>/dev/null || true)" in
-		systemd) printf 'systemd\n' && return 0 ;;
-		openrc* | init) printf 'OpenRC\n' && return 0 ;;
-		esac
-	fi
-
-	printf 'unknown\n'
-}
-
-detect_root_status() {
-	if [[ -n "${DETECT_IS_ROOT:-}" ]]; then
-		if is_true "$DETECT_IS_ROOT"; then
-			printf 'yes\n'
+	if [[ " ${DETECT_MISSING_COMMANDS:-} " == *" ${command_name} "* ]]; then
+		if platform_package_manager_supported; then
+			printf 'missing; installable via %s\n' "$PACKAGE_MANAGER"
 		else
-			printf 'no\n'
+			printf 'missing; no supported package manager detected\n'
 		fi
-		return 0
-	fi
-
-	if [[ "$(id -u 2>/dev/null || printf '1')" == "0" ]]; then
-		printf 'yes\n'
+	elif command -v "$command_name" >/dev/null 2>&1; then
+		printf 'present\n'
+	elif platform_package_manager_supported; then
+		printf 'missing; installable via %s\n' "$PACKAGE_MANAGER"
 	else
-		printf 'no\n'
-	fi
-}
-
-detect_virtualization_type() {
-	local cgroup_file environ_file product_name status_file systemd_container_file
-	local docker_env_file proc_vz_dir virt
-	local -a environ_files
-
-	if [[ -n "${DETECT_VIRT:-}" ]]; then
-		printf '%s\n' "$DETECT_VIRT"
-		return 0
-	fi
-
-	if ! is_true "${DETECT_SKIP_SYSTEMD_DETECT_VIRT:-false}" && command -v systemd-detect-virt >/dev/null 2>&1; then
-		virt="$(systemd-detect-virt --container 2>/dev/null || true)"
-		case "$virt" in
-		lxc | lxc-libvirt | systemd-nspawn)
-			printf 'LXC\n'
-			return 0
-			;;
-		docker | podman | containerd)
-			printf 'Docker\n'
-			return 0
-			;;
-		esac
-
-		virt="$(systemd-detect-virt --vm 2>/dev/null || true)"
-		case "$virt" in
-		kvm | qemu | microsoft | oracle | xen | vmware)
-			printf 'KVM\n'
-			return 0
-			;;
-		esac
-	fi
-
-	systemd_container_file="${DETECT_SYSTEMD_CONTAINER_FILE:-/run/systemd/container}"
-	if [[ -r "$systemd_container_file" ]]; then
-		case "$(cat "$systemd_container_file" 2>/dev/null || true)" in
-		lxc | lxc-libvirt | systemd-nspawn)
-			printf 'LXC\n'
-			return 0
-			;;
-		docker | podman | containerd)
-			printf 'Docker\n'
-			return 0
-			;;
-		esac
-	fi
-
-	docker_env_file="${DETECT_DOCKERENV_FILE:-/.dockerenv}"
-	if [[ -f "$docker_env_file" ]]; then
-		printf 'Docker\n'
-		return 0
-	fi
-
-	for cgroup_file in "${DETECT_PROC_1_CGROUP_FILE:-/proc/1/cgroup}" "${DETECT_PROC_SELF_CGROUP_FILE:-/proc/self/cgroup}"; do
-		[[ -r "$cgroup_file" ]] || continue
-		if grep -Eiq '(^|/)(lxc|lxc\.payload|libpod-lxc)(/|$)' "$cgroup_file"; then
-			printf 'LXC\n'
-			return 0
-		fi
-		if grep -Eiq '(docker|containerd|kubepods|libpod)' "$cgroup_file"; then
-			printf 'Docker\n'
-			return 0
-		fi
-	done
-
-	environ_files=("${DETECT_PROC_1_ENVIRON_FILE:-/proc/1/environ}" "${DETECT_PROC_SELF_ENVIRON_FILE:-/proc/self/environ}")
-	for environ_file in "${environ_files[@]}"; do
-		[[ -r "$environ_file" ]] || continue
-		if tr '\0' '\n' <"$environ_file" 2>/dev/null | grep -Eiq '^container=(lxc|lxc-libvirt|systemd-nspawn)$'; then
-			printf 'LXC\n'
-			return 0
-		fi
-		if tr '\0' '\n' <"$environ_file" 2>/dev/null | grep -Eiq '^container=(docker|podman|containerd)$'; then
-			printf 'Docker\n'
-			return 0
-		fi
-	done
-
-	status_file="${DETECT_PROC_SELF_STATUS_FILE:-/proc/self/status}"
-	if [[ -r "$status_file" ]] && grep -Eq '^NSpid:[[:space:]]+[0-9]+[[:space:]]+[0-9]+' "$status_file"; then
-		printf 'LXC\n'
-		return 0
-	fi
-
-	proc_vz_dir="${DETECT_PROC_VZ_DIR:-/proc/vz}"
-	if [[ -d "$proc_vz_dir" ]]; then
-		printf 'LXC\n'
-		return 0
-	fi
-
-	if [[ -r "${DETECT_DMI_PRODUCT_NAME_FILE:-/sys/class/dmi/id/product_name}" ]]; then
-		product_name="$(cat "${DETECT_DMI_PRODUCT_NAME_FILE:-/sys/class/dmi/id/product_name}" 2>/dev/null || true)"
-		if [[ "$product_name" == *KVM* || "$product_name" == *QEMU* ]]; then
-			printf 'KVM\n'
-			return 0
-		elif [[ "$product_name" == *Virtual* ]]; then
-			printf 'VPS\n'
-			return 0
-		fi
-	fi
-
-	printf 'unknown\n'
-}
-
-detect_container_virtualization() {
-	case "$1" in
-	LXC | Docker | OpenVZ | lxc | docker | openvz) return 0 ;;
-	*) return 1 ;;
-	esac
-}
-
-detect_systemd_support() {
-	local init_system="$1"
-
-	if [[ "$init_system" == "systemd" ]] && command -v systemctl >/dev/null 2>&1; then
-		printf 'yes\n'
-	else
-		printf 'no\n'
+		printf 'missing; no supported package manager detected\n'
 	fi
 }
 
@@ -288,63 +106,17 @@ detect_public_host_for_matrix() {
 	printf 'unavailable; set PUBLIC_HOST=1.2.3.4 to override\n'
 }
 
-detect_kernel_bbr_status() {
-	local sysctl_output
-
-	if [[ -n "${DETECT_BBR_STATUS:-}" ]]; then
-		printf '%s\n' "$DETECT_BBR_STATUS"
-		return 0
-	fi
-
-	if [[ -n "${DETECT_BBR_AVAILABLE:-}" ]]; then
-		if is_true "$DETECT_BBR_AVAILABLE"; then
-			printf 'supported\n'
-		else
-			printf 'unsupported\n'
-		fi
-		return 0
-	fi
-
-	if [[ "$(uname -s 2>/dev/null || true)" != "Linux" ]]; then
-		printf 'unknown\n'
-		return 0
-	fi
-
-	if [[ -r /proc/sys/net/ipv4/tcp_available_congestion_control ]]; then
-		if grep -qw bbr /proc/sys/net/ipv4/tcp_available_congestion_control; then
-			printf 'supported\n'
-		else
-			printf 'unknown\n'
-		fi
-		return 0
-	fi
-
-	if command -v sysctl >/dev/null 2>&1; then
-		sysctl_output="$(sysctl net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
-		if printf '%s\n' "$sysctl_output" | grep -qw bbr; then
-			printf 'supported\n'
-		else
-			printf 'unsupported\n'
-		fi
-		return 0
-	fi
-
-	printf 'unknown\n'
-}
-
 detect_bbr_matrix_status() {
-	local virt="$1"
-	local base_status="$2"
 	local kernel_status
 
-	kernel_status="$(detect_kernel_bbr_status)"
-	if detect_container_virtualization "$virt"; then
+	kernel_status="$(platform_kernel_bbr_status)"
+	if [[ "${IS_CONTAINER:-no}" == "yes" ]]; then
 		if [[ "$kernel_status" == "supported" ]]; then
 			printf 'kernel supports bbr; applying may be unavailable in container\n'
 		else
 			printf 'unavailable or unknown in container\n'
 		fi
-	elif [[ "$base_status" == "full install supported" ]]; then
+	elif [[ "${SUPPORT_LEVEL:-unsupported}" == "full install candidate" ]]; then
 		if [[ "$kernel_status" == "supported" ]]; then
 			printf 'supported\n'
 		else
@@ -356,10 +128,9 @@ detect_bbr_matrix_status() {
 }
 
 detect_bbr_scheme_status() {
-	local virt="$1"
-	local matrix_status="$2"
+	local matrix_status="$1"
 
-	if detect_container_virtualization "$virt"; then
+	if [[ "${IS_CONTAINER:-no}" == "yes" ]]; then
 		case "$matrix_status" in
 		kernel\ supports\ bbr*)
 			printf 'kernel supports bbr; apply permission unknown in container\n'
@@ -373,112 +144,88 @@ detect_bbr_scheme_status() {
 	fi
 }
 
-detect_base_install_status() {
-	local init_system="$1"
-	local is_root="$2"
-	local systemd_supported="$3"
-
-	if detect_supported_release && [[ "$init_system" == "systemd" && "$systemd_supported" == "yes" && "$is_root" == "yes" ]]; then
-		printf 'full install supported\n'
-		return 0
-	fi
-
-	case "${DETECT_OS_ID:-unknown}" in
-	alpine)
-		printf 'dry-run only\n'
-		return 0
-		;;
-	unknown)
-		printf 'unsupported\n'
-		return 0
-		;;
-	esac
-
-	if ! detect_supported_release; then
-		printf 'unsupported\n'
-	elif [[ "$init_system" != "systemd" || "$systemd_supported" != "yes" || "$is_root" != "yes" ]]; then
-		printf 'dry-run only\n'
-	else
-		printf 'unsupported\n'
-	fi
-}
-
 detect_reality_status() {
-	local base_status="$1"
-	local tcp443_status="$2"
+	local tcp443_status="$1"
 
-	if [[ "$base_status" != "full install supported" ]]; then
-		printf '%s\n' "$base_status"
+	if ! should_install_reality; then
+		printf 'skipped because INSTALL_REALITY=false\n'
+	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
+		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
 	elif [[ "$tcp443_status" == "occupied" ]]; then
-		printf 'unsupported\n'
+		printf 'unsupported: TCP 443 is occupied\n'
 	else
-		printf 'full install supported\n'
+		printf 'full install candidate\n'
 	fi
 }
 
 detect_hy2_status() {
-	local base_status="$1"
-	local udp8443_status="$2"
+	local udp8443_status="$1"
 
 	if ! should_install_hy2; then
 		printf 'skipped because INSTALL_HY2=false\n'
-	elif [[ "$base_status" != "full install supported" ]]; then
-		printf 'dry-run only\n'
-	elif is_true "${NAT_MODE:-false}" && ! is_true "${HY2_UDP_MAPPED:-false}"; then
-		printf 'unavailable because UDP is not mapped / unknown\n'
+	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
+		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
 	elif [[ "$udp8443_status" == local\ socket\ occupied* ]]; then
-		printf 'unavailable because UDP is not mapped / unknown\n'
+		printf 'unsupported: UDP 8443 appears occupied\n'
+	elif is_true "${NAT_MODE:-false}" && ! is_true "${HY2_UDP_MAPPED:-false}"; then
+		printf 'full install candidate with UDP warning\n'
 	else
-		printf 'full install supported\n'
+		printf 'full install candidate with UDP warning\n'
 	fi
 }
 
 detect_xhttp_status() {
-	local base_status="$1"
-	local tcp2053_status="$2"
+	local tcp2053_status="$1"
 
-	if [[ "$base_status" != "full install supported" ]]; then
-		printf '%s\n' "$base_status"
+	if ! should_install_xhttp; then
+		printf 'skipped because INSTALL_XHTTP=false\n'
+	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
+		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
 	elif [[ "$tcp2053_status" == "occupied" ]]; then
-		printf 'unsupported\n'
+		printf 'unsupported: TCP 2053 is occupied\n'
 	else
-		printf 'full install supported\n'
+		printf 'full install candidate\n'
 	fi
 }
 
 show_detect_matrix() {
-	local init_system is_root virt arch systemd_supported bbr_status
-	local bbr_scheme_status
-	local tcp443_status tcp2053_status udp8443_status public_host_result base_status
+	local bbr_status bbr_scheme_status public_host_result systemd_supported
+	local tcp443_status tcp2053_status udp8443_status
 
-	detect_load_os_info
-	init_system="$(detect_init_system_name)"
-	is_root="$(detect_root_status)"
-	virt="$(detect_virtualization_type)"
-	arch="$(uname -m 2>/dev/null || printf 'unknown')"
-	systemd_supported="$(detect_systemd_support "$init_system")"
+	detect_platform
+	if [[ "${SERVICE_MANAGER:-unknown}" == "systemd" ]]; then
+		systemd_supported="yes"
+	else
+		systemd_supported="no"
+	fi
+
 	tcp443_status="$(detect_tcp_port_status 443)"
 	tcp2053_status="$(detect_tcp_port_status 2053)"
 	udp8443_status="$(detect_udp_port_status 8443)"
 	public_host_result="$(detect_public_host_for_matrix)"
-	base_status="$(detect_base_install_status "$init_system" "$is_root" "$systemd_supported")"
-	bbr_status="$(detect_bbr_matrix_status "$virt" "$base_status")"
-	bbr_scheme_status="$(detect_bbr_scheme_status "$virt" "$bbr_status")"
+	bbr_status="$(detect_bbr_matrix_status)"
+	bbr_scheme_status="$(detect_bbr_scheme_status "$bbr_status")"
 
 	cat <<EOF
 Capability Matrix
-OS: ${DETECT_OS_PRETTY}
-OS name: ${DETECT_OS_NAME}
-OS version: ${DETECT_OS_VERSION}
-Init system: ${init_system}
-Root: ${is_root}
-Virtualization: ${virt}
-Architecture: ${arch}
+OS: ${OS_PRETTY_NAME}
+OS ID: ${OS_ID}
+OS version: ${OS_VERSION_ID}
+OS family: ${OS_FAMILY}
+Init system: ${INIT_SYSTEM}
+Package manager: ${PACKAGE_MANAGER}
+Service manager: ${SERVICE_MANAGER}
+Root: ${IS_ROOT}
+Virtualization: ${VIRT_TYPE}
+Container: ${IS_CONTAINER}
+Architecture: ${ARCH}
 Systemd supported: ${systemd_supported}
+Support level: ${SUPPORT_LEVEL}
+Support reason: ${SUPPORT_REASON}
 BBR: ${bbr_status}
-curl: $(detect_command_status curl)
-unzip: $(detect_command_status unzip)
-openssl: $(detect_command_status openssl)
+curl: $(detect_dependency_status curl)
+unzip: $(detect_dependency_status unzip)
+openssl: $(detect_dependency_status openssl)
 TCP 443: ${tcp443_status}
 TCP 2053: ${tcp2053_status}
 UDP 8443: ${udp8443_status}
@@ -486,9 +233,9 @@ NAT_MODE: ${NAT_MODE}
 PUBLIC_HOST: ${public_host_result}
 
 Scheme Status
-Reality Vision: $(detect_reality_status "$base_status" "$tcp443_status")
-Hysteria2: $(detect_hy2_status "$base_status" "$udp8443_status")
-XHTTP + Caddy: $(detect_xhttp_status "$base_status" "$tcp2053_status")
+Reality Vision: $(detect_reality_status "$tcp443_status")
+Hysteria2: $(detect_hy2_status "$udp8443_status")
+XHTTP + Caddy: $(detect_xhttp_status "$tcp2053_status")
 BBR: ${bbr_scheme_status}
 EOF
 }

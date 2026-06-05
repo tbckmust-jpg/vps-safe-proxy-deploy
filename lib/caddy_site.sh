@@ -15,12 +15,7 @@ install_caddy() {
 	fi
 
 	install_system_dependencies
-	apt-get install -y debian-keyring debian-archive-keyring apt-transport-https gpg
-	curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key -o /tmp/caddy-stable-gpg.key
-	gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg /tmp/caddy-stable-gpg.key
-	curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt -o /etc/apt/sources.list.d/caddy-stable.list
-	apt-get update
-	apt-get install -y caddy
+	install_packages caddy
 }
 
 render_caddy_site() {
@@ -60,8 +55,8 @@ stage_caddy_config_with_rollback() {
 		return 1
 	fi
 
-	if ! systemctl restart caddy; then
-		warn "systemctl restart caddy failed; restoring previous Caddyfile"
+	if ! service_restart caddy; then
+		warn "service restart caddy failed; restoring previous Caddyfile"
 		rollback_config "$backup_path" "$CADDY_CONFIG_FILE"
 		return 1
 	fi

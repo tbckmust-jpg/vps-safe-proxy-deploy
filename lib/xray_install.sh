@@ -54,7 +54,7 @@ LimitNOFILE=1000000
 
 [Install]
 WantedBy=multi-user.target"
-	systemctl enable xray
+	service_enable xray
 }
 
 xray_asset_arch() {
@@ -105,8 +105,8 @@ stage_xray_config_with_rollback() {
 		return 1
 	fi
 
-	if ! systemctl restart "$service_name"; then
-		warn "systemctl restart failed; restoring previous config"
+	if ! service_restart "$service_name"; then
+		warn "service restart failed; restoring previous config"
 		rollback_config "$backup_path" "$destination"
 		return 1
 	fi

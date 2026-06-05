@@ -8,12 +8,9 @@ show_status() {
 
 	log "credentials file: ${CREDENTIALS_FILE}"
 
+	detect_platform
 	for service in xray hysteria-server caddy; do
-		if command -v systemctl >/dev/null 2>&1; then
-			systemctl --no-pager --full status "$service" || true
-		else
-			warn "systemctl not found; cannot query ${service}"
-		fi
+		service_status "$service"
 	done
 
 	if command -v ss >/dev/null 2>&1; then

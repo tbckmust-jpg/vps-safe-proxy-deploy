@@ -11,10 +11,9 @@ uninstall_all() {
 		return 0
 	fi
 
+	detect_platform
 	for service in xray hysteria-server caddy; do
-		if command -v systemctl >/dev/null 2>&1; then
-			systemctl disable --now "$service" || true
-		fi
+		service_disable_now "$service" || true
 	done
 
 	if is_true "${PURGE:-false}"; then

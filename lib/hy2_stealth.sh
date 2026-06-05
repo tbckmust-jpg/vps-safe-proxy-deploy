@@ -48,7 +48,7 @@ LimitNOFILE=1048576
 
 [Install]
 WantedBy=multi-user.target"
-	systemctl enable hysteria-server
+	service_enable hysteria-server
 }
 
 hy2_asset_arch() {
@@ -110,8 +110,8 @@ stage_hy2_config_with_rollback() {
 
 	backup_path="$(install_with_backup "$rendered" "$HY2_CONFIG_FILE" hysteria-server)"
 
-	if ! systemctl restart hysteria-server; then
-		warn "systemctl restart hysteria-server failed; restoring previous config"
+	if ! service_restart hysteria-server; then
+		warn "service restart hysteria-server failed; restoring previous config"
 		rollback_config "$backup_path" "$HY2_CONFIG_FILE"
 		return 1
 	fi

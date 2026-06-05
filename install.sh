@@ -5,6 +5,12 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=lib/common.sh
 . "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=lib/platform.sh
+. "${SCRIPT_DIR}/lib/platform.sh"
+# shellcheck source=lib/pkg_manager.sh
+. "${SCRIPT_DIR}/lib/pkg_manager.sh"
+# shellcheck source=lib/service_manager.sh
+. "${SCRIPT_DIR}/lib/service_manager.sh"
 # shellcheck source=lib/os_detect.sh
 . "${SCRIPT_DIR}/lib/os_detect.sh"
 # shellcheck source=lib/bbr.sh
@@ -46,6 +52,71 @@ Commands:
 USAGE
 }
 
+can_use_tcp_port() {
+	local port="$1"
+	local label="$2"
+	local status
+
+	if is_simulation; then
+		return 0
+	fi
+
+	status="$(detect_tcp_port_status "$port")"
+	if [[ "$status" == "occupied" ]]; then
+		warn "${label} skipped: TCP ${port} is already occupied"
+		return 1
+	fi
+
+	return 0
+}
+
+can_use_udp_port() {
+	local port="$1"
+	local status
+
+	if is_simulation; then
+		return 0
+	fi
+
+	status="$(detect_udp_port_status "$port")"
+	if [[ "$status" == local\ socket\ occupied* ]]; then
+		warn "Hysteria2 skipped: UDP ${port} appears occupied locally"
+		return 1
+	fi
+
+	return 0
+}
+
+run_all() {
+	detect_supported_os
+	enable_bbr
+	require_public_host
+
+	if should_install_reality; then
+		if can_use_tcp_port "$REALITY_PORT" "Reality Vision"; then
+			install_reality_vision
+		fi
+	else
+		write_reality_skipped_notice
+	fi
+
+	if should_install_hy2; then
+		if can_use_udp_port "$HY2_PORT"; then
+			install_hy2_stealth
+		fi
+	else
+		write_hy2_skipped_notice
+	fi
+
+	if should_install_xhttp; then
+		if can_use_tcp_port "$XHTTP_HTTPS_PORT" "XHTTP + Caddy"; then
+			install_xhttp_cdn
+		fi
+	else
+		write_xhttp_skipped_notice
+	fi
+}
+
 main() {
 	local command="${1:-help}"
 	if [[ $# -gt 0 ]]; then
@@ -83,24 +154,7 @@ main() {
 
 	case "$command" in
 	all)
-		detect_supported_os
-		enable_bbr
-		require_public_host
-		if should_install_reality; then
-			install_reality_vision
-		else
-			write_reality_skipped_notice
-		fi
-		if should_install_hy2; then
-			install_hy2_stealth
-		else
-			write_hy2_skipped_notice
-		fi
-		if should_install_xhttp; then
-			install_xhttp_cdn
-		else
-			write_xhttp_skipped_notice
-		fi
+		run_all
 		;;
 	reality)
 		detect_supported_os

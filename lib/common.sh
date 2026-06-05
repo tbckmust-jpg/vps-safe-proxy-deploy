@@ -346,26 +346,11 @@ require_root() {
 }
 
 require_linux_install_host() {
-	require_root
-
-	if ! command -v systemctl >/dev/null 2>&1; then
-		die "systemd is required for real installation; Alpine/OpenRC is not supported"
-	fi
+	require_full_install_candidate
 }
 
 install_system_dependencies() {
-	if is_dry_run; then
-		log "dry-run: would install curl unzip openssl ca-certificates"
-		return 0
-	fi
-
-	if is_test_mode; then
-		log "test-mode: skipping package installation"
-		return 0
-	fi
-
-	apt-get update
-	apt-get install -y curl unzip openssl ca-certificates
+	install_packages curl unzip openssl ca-certificates
 }
 
 write_systemd_unit() {
@@ -376,8 +361,8 @@ write_systemd_unit() {
 	backup_path="$(backup_file "$destination" "$(basename "$destination")" || true)"
 	printf '%s\n' "$content" >"$destination"
 
-	if ! systemctl daemon-reload; then
-		warn "systemctl daemon-reload failed; restoring previous unit"
+	if ! service_daemon_reload; then
+		warn "service daemon reload failed; restoring previous unit"
 		rollback_config "$backup_path" "$destination"
 		return 1
 	fi

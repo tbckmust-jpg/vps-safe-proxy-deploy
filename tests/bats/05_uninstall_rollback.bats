@@ -14,6 +14,8 @@ setup() {
     DRY_RUN=false
     TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
     . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
     . \"\$PROJECT_ROOT/lib/xray_install.sh\"
     init_runtime \"\$PROJECT_ROOT\"
     apply_default_config
@@ -38,6 +40,8 @@ setup() {
     DRY_RUN=false
     TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
     . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
     . \"\$PROJECT_ROOT/lib/xray_install.sh\"
     init_runtime \"\$PROJECT_ROOT\"
     apply_default_config
@@ -73,6 +77,8 @@ setup() {
     PURGE=true
     TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
     . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
     . \"\$PROJECT_ROOT/lib/uninstall.sh\"
     init_runtime \"\$PROJECT_ROOT\"
     apply_default_config
@@ -134,6 +140,8 @@ setup() {
     DRY_RUN=false
     TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
     . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
     . \"\$PROJECT_ROOT/lib/caddy_site.sh\"
     init_runtime \"\$PROJECT_ROOT\"
     apply_default_config
