@@ -273,6 +273,7 @@ should_install_xhttp() {
 }
 
 write_reality_skipped_notice() {
+	remove_credential_section "reality-vision"
 	append_credential ''
 	append_credential '[reality-vision]'
 	append_credential 'Reality Vision: skipped by INSTALL_REALITY=false'
@@ -280,6 +281,7 @@ write_reality_skipped_notice() {
 }
 
 write_hy2_skipped_notice() {
+	remove_credential_section "hysteria2"
 	append_credential ''
 	append_credential '[hysteria2]'
 	append_credential 'Hysteria2: skipped by INSTALL_HY2=false'
@@ -287,6 +289,7 @@ write_hy2_skipped_notice() {
 }
 
 write_xhttp_skipped_notice() {
+	remove_credential_section "xhttp-cdn"
 	append_credential ''
 	append_credential '[xhttp-cdn]'
 	append_credential 'XHTTP: skipped by INSTALL_XHTTP=false'
@@ -326,10 +329,73 @@ random_password() {
 	fi
 }
 
+url_encode() {
+	local value="$1"
+	local encoded char hex i
+	local LC_ALL=C
+	encoded=""
+
+	for ((i = 0; i < ${#value}; i++)); do
+		char="${value:i:1}"
+		case "$char" in
+		[a-zA-Z0-9.~_-])
+			encoded="${encoded}${char}"
+			;;
+		*)
+			printf -v hex '%%%02X' "'${char}"
+			encoded="${encoded}${hex}"
+			;;
+		esac
+	done
+
+	printf '%s\n' "$encoded"
+}
+
 secure_credentials_file() {
 	mkdir -p "$(dirname "$CREDENTIALS_FILE")"
 	umask 077
 	touch "$CREDENTIALS_FILE"
+	chmod 600 "$CREDENTIALS_FILE"
+}
+
+begin_credentials_regeneration() {
+	local backup_path timestamp
+
+	mkdir -p "$(dirname "$CREDENTIALS_FILE")" "$BACKUP_DIR"
+	if [[ -s "$CREDENTIALS_FILE" ]]; then
+		timestamp="$(date +%Y%m%d%H%M%S 2>/dev/null || printf 'unknown-time')"
+		backup_path="${BACKUP_DIR}/credentials-${timestamp}.txt"
+		cp -a "$CREDENTIALS_FILE" "$backup_path"
+		chmod 600 "$backup_path"
+		log "credentials backup created before regeneration"
+	fi
+
+	umask 077
+	: >"$CREDENTIALS_FILE"
+	chmod 600 "$CREDENTIALS_FILE"
+	log "credentials regenerated"
+}
+
+remove_credential_section() {
+	local section="$1"
+	local tmp_file
+
+	secure_credentials_file
+	tmp_file="${CREDENTIALS_FILE}.$$.tmp"
+	awk -v section="[${section}]" '
+		/^\[[^]]+\]$/ {
+			skip = ($0 == section)
+			if (!skip) {
+				print
+			}
+			next
+		}
+		!skip {
+			print
+		}
+	' "$CREDENTIALS_FILE" >"$tmp_file"
+	cat "$tmp_file" >"$CREDENTIALS_FILE"
+	cleanup_tmp_file "$tmp_file"
 	chmod 600 "$CREDENTIALS_FILE"
 }
 
@@ -468,7 +534,7 @@ render_template() {
 		PUBLIC_HOST EMAIL HY2_DOMAIN XHTTP_DOMAIN REALITY_SERVER_NAME \
 		REALITY_PORT HY2_PORT XHTTP_HTTPS_PORT XHTTP_INTERNAL_HOST XHTTP_INTERNAL_PORT \
 		REALITY_UUID REALITY_PRIVATE_KEY REALITY_PUBLIC_KEY REALITY_SHORT_ID \
-		HY2_PASSWORD HY2_TLS_MODE HY2_CERT_FILE HY2_KEY_FILE HY2_MASQUERADE_DIR HY2_OBFS_PASSWORD HY2_CLIENT_PORT \
+		HY2_PASSWORD HY2_TLS_MODE HY2_TLS_INSECURE HY2_CERT_FILE HY2_KEY_FILE HY2_MASQUERADE_DIR HY2_OBFS_PASSWORD HY2_CLIENT_PORT \
 		MASQUERADE_MODE MASQUERADE_PROXY_URL \
 		XHTTP_UUID XHTTP_PATH CADDY_SITE_DIR CADDY_TLS_LINE CADDY_SITE_ADDRESS CADDY_SITE_NAME; do
 		replace_token "$destination" "$name" "${!name:-}"

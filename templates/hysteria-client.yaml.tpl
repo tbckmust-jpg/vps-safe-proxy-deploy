@@ -3,7 +3,7 @@ auth: "{{HY2_PASSWORD}}"
 
 tls:
   sni: "{{HY2_DOMAIN}}"
-  insecure: false
+  insecure: {{HY2_TLS_INSECURE}}
 
 obfs:
   type: salamander

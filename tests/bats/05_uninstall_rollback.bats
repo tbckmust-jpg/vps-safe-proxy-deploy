@@ -347,6 +347,29 @@ debug_failure_context() {
   [[ "$output" == *"credentials path:"* ]]
 }
 
+@test "repeated all regenerates credentials without duplicate sections" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -eq 0 ]
+
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  if [ "$status" -ne 0 ]; then
+    debug_failure_context
+  fi
+  [ "$status" -eq 0 ]
+
+  file="$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  [ "$(grep -c '^\[reality-vision\]$' "$file")" -eq 1 ]
+  [ "$(grep -c '^\[hysteria2\]$' "$file")" -eq 1 ]
+  [ "$(grep -c '^\[xhttp-cdn\]$' "$file")" -eq 1 ]
+  [ "$(find "$REPO_ROOT/tests/tmp/backups" -name 'credentials-*.txt' -type f | wc -l)" -ge 1 ]
+  ! grep -Eq '(vless|hysteria2)://' "$REPO_ROOT/tests/tmp/log/vps-oneclick-install.log"
+  ! grep -Eq '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' "$REPO_ROOT/tests/tmp/log/vps-oneclick-install.log"
+  [[ "$output" == *"credentials backup created before regeneration"* ]]
+  [[ "$output" == *"credentials regenerated"* ]]
+}
+
 @test "all continues to XHTTP when HY2 fails after Reality succeeds" {
   run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 HY2_DOMAIN=hy2.example.com XHTTP_DOMAIN=cdn.example.com EMAIL=me@example.com \
     MOCK_SYSTEMCTL_FAIL_SERVICE=hysteria-server bash "$REPO_ROOT/install.sh" all --test-mode

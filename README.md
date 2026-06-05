@@ -193,17 +193,19 @@ BACKUP_DIR=tests/tmp/backups
 
 权限必须为 `600`。终端只会提示凭据文件路径，不会直接打印完整节点链接。
 
+执行 `all` 时，安装器会先把已有 credentials 备份到 `/root/vps-oneclick/backups/credentials-时间戳.txt`，再重新生成一份新的 credentials。重复执行 `all` 后，每个方案 section 只应保留一份，避免旧导出和新导出混在一起。日志只记录已创建备份和已重新生成，不记录凭据内容。
+
 ## XHTTP/CDN 说明
 
 XHTTP 默认由 Caddy 对外提供 HTTPS 网站。只有随机路径会反代到本机 Xray XHTTP，Xray XHTTP 只能监听 `127.0.0.1` 内网端口，不能直接暴露公网。
 
 使用 Cloudflare 或优选 IP 时，客户端地址可以填写优选 IP，但 Host/SNI 必须保持 `XHTTP_DOMAIN`。
 
-如果 `XHTTP_DOMAIN` 为空，Caddy 会生成无域名降级配置，伪装完整度会下降。生产环境建议为 XHTTP/Caddy 准备真实域名。
+如果 `XHTTP_DOMAIN` 为空，Caddy 会生成无域名降级配置，伪装完整度会下降。此时客户端导出使用 non-TLS XHTTP：v2rayN 中 `security=none`，sing-box 中 `tls.enabled=false`，Host 使用 `PUBLIC_HOST`，不写 SNI。生产环境建议为 XHTTP/Caddy 准备真实域名；只有设置 `XHTTP_DOMAIN` 时，客户端导出才会启用 TLS、SNI 和 `server_name=XHTTP_DOMAIN`。
 
 ## Hysteria2 证书与 UDP
 
-提供 `HY2_DOMAIN` 和 `EMAIL` 时会生成 ACME 模式配置。没有 `HY2_DOMAIN` 或没有 `EMAIL` 时会使用自签证书，伪装完整度会下降。
+提供 `HY2_DOMAIN` 和 `EMAIL` 时会生成 ACME 模式配置，客户端不需要 insecure。没有 `HY2_DOMAIN` 或没有 `EMAIL` 时会使用自签证书，伪装完整度会下降；客户端 yaml 会包含 `tls.insecure: true`，URI 也会带 insecure 参数。自签模式下客户端必须允许跳过证书校验。
 
 Hysteria2 默认使用 UDP `8443`。脚本会提示 UDP 可用性无法完全本地确认，不会假装 UDP 一定可用。
 
@@ -274,6 +276,8 @@ Reality key generation uses `xray x25519` in real mode. Newer Xray versions may 
 Before restarting Xray, the installer validates the same configuration directory used by the systemd unit. Newer Xray CLI forms such as `xray run -test -confdir` and `xray run -test -config` are tried before the legacy `xray test` form. The installer records only command forms and exit codes on failure; it never prints configuration file contents.
 
 `all` runs the stages in order: BBR, Reality, Hysteria2, XHTTP/Caddy, Firewall, and Summary. A later scheme failure is recorded and the installer continues far enough to print a final summary. The final exit code is non-zero when any required scheme failed.
+
+When `all` sees an existing port already managed by this project, it refreshes that scheme's config and client export instead of treating the port as an unknown conflict. This is what allows rerunning `all` after an exposed test credentials file: the old file is backed up, a new credentials file is written, and each section appears once.
 
 Real installation logs are written to:
 

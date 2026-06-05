@@ -110,12 +110,20 @@ run_all() {
 		warn "BBR failed; continuing with proxy installation"
 	fi
 	require_public_host
+	begin_credentials_regeneration
 
 	if should_install_reality; then
 		reality_port_status="$(detect_tcp_port_status "$REALITY_PORT")"
 		if [[ "$reality_port_status" == managed\ by\ this\ project:* ]]; then
-			ALL_REALITY_STATUS="installed / managed by this project"
-			log "Reality skipped because an existing managed install was detected"
+			log "Reality existing managed install detected; refreshing config and client export"
+			if install_reality_vision; then
+				ALL_REALITY_STATUS="installed / refreshed managed by this project"
+				log "Reality success"
+			else
+				ALL_REALITY_STATUS="failed"
+				all_failed=1
+				warn "Reality failed"
+			fi
 		elif [[ "$reality_port_status" == "occupied" ]] && ! is_simulation; then
 			ALL_REALITY_STATUS="skipped: TCP ${REALITY_PORT} conflict"
 			all_failed=1
@@ -139,8 +147,15 @@ run_all() {
 	if should_install_hy2; then
 		hy2_port_status="$(detect_udp_port_status "$HY2_PORT")"
 		if [[ "$hy2_port_status" == managed\ by\ this\ project:* ]]; then
-			ALL_HY2_STATUS="installed / managed by this project"
-			log "HY2 skipped because an existing managed install was detected"
+			log "HY2 existing managed install detected; refreshing config and client export"
+			if install_hy2_stealth; then
+				ALL_HY2_STATUS="installed / refreshed managed by this project"
+				log "HY2 success"
+			else
+				ALL_HY2_STATUS="failed"
+				all_failed=1
+				warn "HY2 failed"
+			fi
 		elif [[ "$hy2_port_status" == local\ socket\ occupied* ]] && ! is_simulation; then
 			ALL_HY2_STATUS="skipped: UDP ${HY2_PORT} conflict"
 			all_failed=1
@@ -164,8 +179,15 @@ run_all() {
 	if should_install_xhttp; then
 		xhttp_port_status="$(detect_tcp_port_status "$XHTTP_HTTPS_PORT")"
 		if [[ "$xhttp_port_status" == managed\ by\ this\ project:* ]]; then
-			ALL_XHTTP_STATUS="installed / managed by this project"
-			log "XHTTP skipped because an existing managed install was detected"
+			log "XHTTP existing managed install detected; refreshing config and client export"
+			if install_xhttp_cdn; then
+				ALL_XHTTP_STATUS="installed / refreshed managed by this project"
+				log "XHTTP success"
+			else
+				ALL_XHTTP_STATUS="failed"
+				all_failed=1
+				warn "XHTTP failed"
+			fi
 		elif [[ "$xhttp_port_status" == "occupied" ]] && ! is_simulation; then
 			ALL_XHTTP_STATUS="skipped: TCP ${XHTTP_HTTPS_PORT} conflict"
 			all_failed=1
