@@ -242,9 +242,10 @@ xray_test_try() {
 
 	if "$@" >/dev/null 2>&1; then
 		return 0
+	else
+		status="$?"
 	fi
 
-	status="$?"
 	warn "xray config test form failed: ${form} (exit ${status})"
 	current="${!attempts_var:-}"
 	if [[ -n "$current" ]]; then
