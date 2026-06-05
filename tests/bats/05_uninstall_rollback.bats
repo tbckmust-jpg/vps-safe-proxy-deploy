@@ -135,6 +135,95 @@ debug_failure_context() {
   [ "$status" -ne 0 ]
 }
 
+@test "xray x25519 PublicKey output parses without printing keys" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    PATH=\"\$PROJECT_ROOT/tests/mocks:\$PATH\"
+    export PATH TEST_MODE DRY_RUN TEST_TMP_DIR
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
+    . \"\$PROJECT_ROOT/lib/xray_install.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    MOCK_XRAY_X25519_FORMAT=publickey generate_reality_keypair
+    [[ \"\$REALITY_PRIVATE_KEY\" == MOCK_PRIVATE_KEY ]]
+    [[ \"\$REALITY_PUBLIC_KEY\" == MOCK_PUBLIC_KEY ]]
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"MOCK_PRIVATE_KEY"* ]]
+  [[ "$output" != *"MOCK_PUBLIC_KEY"* ]]
+}
+
+@test "xray x25519 Password PublicKey output parses without printing keys" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    PATH=\"\$PROJECT_ROOT/tests/mocks:\$PATH\"
+    export PATH TEST_MODE DRY_RUN TEST_TMP_DIR
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
+    . \"\$PROJECT_ROOT/lib/xray_install.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    MOCK_XRAY_X25519_FORMAT=password generate_reality_keypair
+    [[ \"\$REALITY_PRIVATE_KEY\" == MOCK_PRIVATE_KEY ]]
+    [[ \"\$REALITY_PUBLIC_KEY\" == MOCK_PUBLIC_KEY ]]
+  "
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"MOCK_PRIVATE_KEY"* ]]
+  [[ "$output" != *"MOCK_PUBLIC_KEY"* ]]
+}
+
+@test "xray x25519 parse failure reports labels without leaking keys" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    PATH=\"\$PROJECT_ROOT/tests/mocks:\$PATH\"
+    export PATH TEST_MODE DRY_RUN TEST_TMP_DIR
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    . \"\$PROJECT_ROOT/lib/platform.sh\"
+    . \"\$PROJECT_ROOT/lib/service_manager.sh\"
+    . \"\$PROJECT_ROOT/lib/xray_install.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    MOCK_XRAY_X25519_FORMAT=broken generate_reality_keypair
+  "
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"xray x25519 output labels: PrivateKey, Hash32"* ]]
+  [[ "$output" != *"SHOULD_NOT_LEAK_PRIVATE"* ]]
+  [[ "$output" != *"MOCK_PRIVATE_KEY"* ]]
+  [[ "$output" != *"MOCK_PUBLIC_KEY"* ]]
+}
+
+@test "Reality keygen failure rolls back project-created xray unit" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 MOCK_XRAY_X25519_FORMAT=broken MOCK_XRAY_INSTALL_WRITES_UNIT=1 \
+    bash "$REPO_ROOT/install.sh" reality --test-mode
+  [ "$status" -ne 0 ]
+  [ ! -e "$REPO_ROOT/tests/tmp/etc/systemd/system/xray.service" ]
+  grep -q 'systemctl stop xray' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl disable --now xray' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl daemon-reload' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  [[ "$output" == *"failed to generate Reality x25519 keypair with xray"* ]]
+  [[ "$output" != *"SHOULD_NOT_LEAK_PRIVATE"* ]]
+  [[ "$output" != *"MOCK_PRIVATE_KEY"* ]]
+  [[ "$output" != *"MOCK_PUBLIC_KEY"* ]]
+}
+
 @test "test-mode all invokes real install path through mocks" {
   run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 HY2_DOMAIN=hy2.example.com XHTTP_DOMAIN=cdn.example.com EMAIL=me@example.com \
     bash "$REPO_ROOT/install.sh" all --test-mode

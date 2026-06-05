@@ -354,6 +354,10 @@ install_system_dependencies() {
 }
 
 write_systemd_unit() {
+	write_systemd_unit_with_backup "$@" >/dev/null
+}
+
+write_systemd_unit_with_backup() {
 	local destination="$1"
 	local content="$2"
 	local backup_path
@@ -366,6 +370,8 @@ write_systemd_unit() {
 		rollback_config "$backup_path" "$destination"
 		return 1
 	fi
+
+	printf '%s\n' "$backup_path"
 }
 
 replace_token() {

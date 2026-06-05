@@ -14,9 +14,25 @@ if [[ "${MOCK_XRAY_TEST_FAIL:-0}" == "1" ]]; then
 fi
 
 if [[ "${1:-}" == "x25519" ]]; then
-  printf 'Private key: MOCK_PRIVATE_KEY\n'
-  printf 'Public key: MOCK_PUBLIC_KEY\n'
+  case "${MOCK_XRAY_X25519_FORMAT:-password}" in
+    publickey)
+      printf 'PrivateKey: MOCK_PRIVATE_KEY\n'
+      printf 'PublicKey: MOCK_PUBLIC_KEY\n'
+      ;;
+    old)
+      printf 'Private key: MOCK_PRIVATE_KEY\n'
+      printf 'Public key: MOCK_PUBLIC_KEY\n'
+      ;;
+    broken)
+      printf 'PrivateKey: SHOULD_NOT_LEAK_PRIVATE\n'
+      printf 'Hash32: SHOULD_NOT_LEAK_HASH\n'
+      ;;
+    *)
+      printf 'PrivateKey: MOCK_PRIVATE_KEY\n'
+      printf 'Password (PublicKey): MOCK_PUBLIC_KEY\n'
+      printf 'Hash32: MOCK_HASH32\n'
+      ;;
+  esac
 fi
 
 exit 0
-

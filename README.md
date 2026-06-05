@@ -253,3 +253,20 @@ git remote add origin https://github.com/tbckmust-jpg/vps-safe-proxy-deploy.git
 git branch -M main
 git push -u origin main
 ```
+
+## Failure diagnostics
+
+The bootstrap script persists the project to:
+
+```text
+/opt/vps-safe-proxy-deploy
+```
+
+After a failed real installation, these commands should still be available for local troubleshooting on the VPS:
+
+```bash
+bash /opt/vps-safe-proxy-deploy/install.sh status
+tail -n 160 /var/log/vps-oneclick-install.log
+```
+
+Reality key generation uses `xray x25519` in real mode. Newer Xray versions may print the public key as either `PublicKey:` or `Password (PublicKey):`; both labels are supported. If parsing fails, the installer prints only safe diagnostics such as the xray command path, xray version, and output labels. It never prints the generated private key or public key.

@@ -11,7 +11,10 @@ install_reality_vision() {
 		install_xray_core
 	fi
 
-	generate_reality_keypair
+	if ! generate_reality_keypair; then
+		rollback_xray_unit_after_keygen_failure
+		die "failed to generate Reality x25519 keypair with xray"
+	fi
 	export REALITY_UUID REALITY_PRIVATE_KEY REALITY_PUBLIC_KEY REALITY_SHORT_ID
 
 	local rendered_config

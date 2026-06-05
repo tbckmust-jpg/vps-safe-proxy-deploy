@@ -40,3 +40,9 @@ setup() {
   done
 }
 
+@test "bootstrap persists real installs and keeps detect or dry-run temporary" {
+  grep -q '/opt/vps-safe-proxy-deploy' "$REPO_ROOT/bootstrap.sh"
+  grep -q 'use_temp_repo_only' "$REPO_ROOT/bootstrap.sh"
+  grep -q 'exec bash "${persist_dir}/install.sh"' "$REPO_ROOT/bootstrap.sh"
+  grep -q 'exec bash "${repo_dir}/install.sh"' "$REPO_ROOT/bootstrap.sh"
+}

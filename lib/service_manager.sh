@@ -45,6 +45,31 @@ service_restart() {
 	systemctl restart "$service"
 }
 
+service_stop() {
+	local service="$1"
+
+	if is_dry_run; then
+		log "dry-run: would stop ${service}"
+		return 0
+	fi
+
+	if is_test_mode && command -v systemctl >/dev/null 2>&1; then
+		systemctl stop "$service"
+		return 0
+	fi
+
+	if [[ "${SERVICE_MANAGER:-}" != "systemd" ]]; then
+		detect_platform
+	fi
+
+	if [[ "${SERVICE_MANAGER:-unknown}" != "systemd" ]]; then
+		warn "systemd not available; cannot stop ${service}"
+		return 0
+	fi
+
+	systemctl stop "$service"
+}
+
 service_disable_now() {
 	local service="$1"
 
