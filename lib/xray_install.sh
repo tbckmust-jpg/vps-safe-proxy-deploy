@@ -55,7 +55,7 @@ install_xray_core() {
 		return 0
 	fi
 
-	install_system_dependencies
+	install_system_dependencies || return 1
 
 	local arch asset version_path archive tmp_dir
 	arch="$(xray_asset_arch)"
@@ -71,17 +71,17 @@ install_xray_core() {
 	archive="${tmp_dir}/${asset}"
 	trap 'rm -rf "$tmp_dir"' RETURN
 
-	curl -fsSL "https://github.com/XTLS/Xray-core/releases/${version_path}/${asset}" -o "$archive"
-	unzip -o "$archive" xray -d "$tmp_dir" >/dev/null
-	install -m 0755 "${tmp_dir}/xray" "${BIN_DIR}/xray"
+	curl -fsSL "https://github.com/XTLS/Xray-core/releases/${version_path}/${asset}" -o "$archive" || return 1
+	unzip -o "$archive" xray -d "$tmp_dir" >/dev/null || return 1
+	install -m 0755 "${tmp_dir}/xray" "${BIN_DIR}/xray" || return 1
 	mkdir -p "$(dirname "$XRAY_CONFIG_FILE")" "$LOG_DIR"
 
 	unit_file="${SYSTEMD_DIR}/xray.service"
 	unit_content="$(xray_systemd_unit_content)"
 	XRAY_UNIT_FILE="$unit_file"
-	XRAY_UNIT_BACKUP_PATH="$(write_systemd_unit_with_backup "$unit_file" "$unit_content")"
+	XRAY_UNIT_BACKUP_PATH="$(write_systemd_unit_with_backup "$unit_file" "$unit_content")" || return 1
 	export XRAY_UNIT_FILE XRAY_UNIT_BACKUP_PATH
-	service_enable xray
+	service_enable xray || return 1
 }
 
 xray_asset_arch() {

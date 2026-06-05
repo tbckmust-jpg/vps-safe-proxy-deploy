@@ -5,6 +5,14 @@ mock_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "${mock_dir}/tmp"
 printf 'systemctl %s\n' "$*" >>"${mock_dir}/tmp/mock-calls.log"
 
+if [[ -n "${MOCK_SYSTEMCTL_FAIL_SERVICE:-}" ]]; then
+  case " $* " in
+    *" restart ${MOCK_SYSTEMCTL_FAIL_SERVICE}"*)
+      exit 1
+      ;;
+  esac
+fi
+
 if [[ "${MOCK_SYSTEMCTL_FAIL:-0}" == "1" ]]; then
   case " $* " in
     *" restart "* | *" disable --now "*)
@@ -14,4 +22,3 @@ if [[ "${MOCK_SYSTEMCTL_FAIL:-0}" == "1" ]]; then
 fi
 
 exit 0
-

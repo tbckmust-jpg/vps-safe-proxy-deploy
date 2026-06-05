@@ -14,7 +14,7 @@ install_hysteria2_core() {
 		return 0
 	fi
 
-	install_system_dependencies
+	install_system_dependencies || return 1
 
 	local arch version_path url tmp_file unit_file
 	arch="$(hy2_asset_arch)"
@@ -29,8 +29,8 @@ install_hysteria2_core() {
 	tmp_file="$(mktemp)"
 	trap 'rm -f "$tmp_file"' RETURN
 
-	curl -fsSL "$url" -o "$tmp_file"
-	install -m 0755 "$tmp_file" "${BIN_DIR}/hysteria"
+	curl -fsSL "$url" -o "$tmp_file" || return 1
+	install -m 0755 "$tmp_file" "${BIN_DIR}/hysteria" || return 1
 	mkdir -p "$(dirname "$HY2_CONFIG_FILE")" "$LOG_DIR"
 
 	unit_file="${SYSTEMD_DIR}/hysteria-server.service"
@@ -47,8 +47,8 @@ RestartSec=5s
 LimitNOFILE=1048576
 
 [Install]
-WantedBy=multi-user.target"
-	service_enable hysteria-server
+WantedBy=multi-user.target" || return 1
+	service_enable hysteria-server || return 1
 }
 
 hy2_asset_arch() {
@@ -162,11 +162,11 @@ install_hy2_stealth() {
 		return 0
 	fi
 
-	install_hysteria2_core
-	ensure_hy2_self_signed_cert
+	install_hysteria2_core || return 1
+	ensure_hy2_self_signed_cert || return 1
 	warn_udp_port_state "$(effective_export_port "$HY2_PORT" "$HY2_EXTERNAL_PORT")"
 	allow_firewall_port "$(effective_export_port "$HY2_PORT" "$HY2_EXTERNAL_PORT")" udp
-	stage_hy2_config_with_rollback "$rendered_config"
+	stage_hy2_config_with_rollback "$rendered_config" || return 1
 	write_hy2_client_exports
 	credentials_notice
 }

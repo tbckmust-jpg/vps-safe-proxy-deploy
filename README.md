@@ -272,3 +272,15 @@ tail -n 160 /var/log/vps-oneclick-install.log
 Reality key generation uses `xray x25519` in real mode. Newer Xray versions may print the public key as either `PublicKey:` or `Password (PublicKey):`; both labels are supported. If parsing fails, the installer prints only safe diagnostics such as the xray command path, xray version, and output labels. It never prints the generated private key or public key.
 
 Before restarting Xray, the installer validates the same configuration directory used by the systemd unit. Newer Xray CLI forms such as `xray run -test -confdir` and `xray run -test -config` are tried before the legacy `xray test` form. The installer records only command forms and exit codes on failure; it never prints configuration file contents.
+
+`all` runs the stages in order: BBR, Reality, Hysteria2, XHTTP/Caddy, Firewall, and Summary. A later scheme failure is recorded and the installer continues far enough to print a final summary. The final exit code is non-zero when any required scheme failed.
+
+Real installation logs are written to:
+
+```text
+/var/log/vps-oneclick-install.log
+```
+
+Logs include stage start/success/failure and the final summary. They must not include credentials, UUIDs, private keys, passwords, or complete node links.
+
+`detect` treats ports owned by this project as managed rather than as unknown conflicts. For example, TCP 443 held by the project Xray service with the project Reality config is reported as installed/managed. A port held by an unknown process is still reported as a conflict.

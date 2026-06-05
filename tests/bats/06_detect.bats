@@ -156,3 +156,54 @@ assert_full_candidate() {
   [[ "$output" == *"Reality Vision: unsupported"* ]]
   [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
 }
+
+@test "detect treats project-managed xray on 443 as installed" {
+  mkdir -p "$REPO_ROOT/tests/tmp/etc/xray"
+  printf '{}' >"$REPO_ROOT/tests/tmp/etc/xray/xray-reality-vision.json"
+  run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-debian13" \
+    DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_ARCH=x86_64 DETECT_PACKAGE_MANAGER=apt \
+    DETECT_TCP_443_STATUS=occupied DETECT_TCP_443_PROCESS=xray DETECT_TCP_2053_STATUS=free \
+    bash "$REPO_ROOT/install.sh" detect --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"TCP 443: managed by this project: xray"* ]]
+  [[ "$output" == *"Reality Vision: installed / managed by this project"* ]]
+  [[ "$output" != *"Reality Vision: unsupported: TCP 443 is occupied"* ]]
+  [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+}
+
+@test "detect treats unknown process on 443 as conflict" {
+  run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-debian13" \
+    DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_ARCH=x86_64 DETECT_PACKAGE_MANAGER=apt \
+    DETECT_TCP_443_STATUS=occupied DETECT_TCP_443_PROCESS=nginx DETECT_TCP_2053_STATUS=free \
+    bash "$REPO_ROOT/install.sh" detect --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"TCP 443: occupied"* ]]
+  [[ "$output" == *"Reality Vision: unsupported: TCP 443 is occupied"* ]]
+  [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+}
+
+@test "detect treats project-managed caddy on 2053 as installed" {
+  mkdir -p "$REPO_ROOT/tests/tmp/etc/caddy"
+  printf '{}' >"$REPO_ROOT/tests/tmp/etc/caddy/Caddyfile"
+  run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-debian13" \
+    DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_ARCH=x86_64 DETECT_PACKAGE_MANAGER=apt \
+    DETECT_TCP_443_STATUS=free DETECT_TCP_2053_STATUS=occupied DETECT_TCP_2053_PROCESS=caddy \
+    bash "$REPO_ROOT/install.sh" detect --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"TCP 2053: managed by this project: caddy"* ]]
+  [[ "$output" == *"XHTTP + Caddy: installed / managed by this project"* ]]
+  [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+}
+
+@test "detect treats project-managed hysteria on 8443 as installed" {
+  mkdir -p "$REPO_ROOT/tests/tmp/etc/hysteria"
+  printf '{}' >"$REPO_ROOT/tests/tmp/etc/hysteria/hysteria-server.yaml"
+  run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-debian13" \
+    DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_ARCH=x86_64 DETECT_PACKAGE_MANAGER=apt \
+    DETECT_TCP_443_STATUS=free DETECT_TCP_2053_STATUS=free DETECT_UDP_8443_STATUS="local socket occupied; external mapping unknown" \
+    DETECT_UDP_8443_PROCESS=hysteria bash "$REPO_ROOT/install.sh" detect --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"UDP 8443: managed by this project: hysteria"* ]]
+  [[ "$output" == *"Hysteria2: installed / managed by this project"* ]]
+  [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+}

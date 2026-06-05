@@ -62,6 +62,10 @@ can_use_tcp_port() {
 	fi
 
 	status="$(detect_tcp_port_status "$port")"
+	if [[ "$status" == managed\ by\ this\ project:* ]]; then
+		warn "${label} already appears managed by this project on TCP ${port}"
+		return 1
+	fi
 	if [[ "$status" == "occupied" ]]; then
 		warn "${label} skipped: TCP ${port} is already occupied"
 		return 1
@@ -88,33 +92,118 @@ can_use_udp_port() {
 }
 
 run_all() {
+	local reality_port_status hy2_port_status xhttp_port_status
+	local all_failed=0
+	ALL_REALITY_STATUS="not run"
+	ALL_HY2_STATUS="not run"
+	ALL_XHTTP_STATUS="not run"
+	ALL_BBR_STATUS="not run"
+	ALL_FIREWALL_STATUS="handled during scheme installs"
+
 	detect_supported_os
-	enable_bbr
+	log "starting BBR"
+	if enable_bbr; then
+		ALL_BBR_STATUS="completed"
+		log "BBR success"
+	else
+		ALL_BBR_STATUS="failed"
+		warn "BBR failed; continuing with proxy installation"
+	fi
 	require_public_host
 
 	if should_install_reality; then
-		if can_use_tcp_port "$REALITY_PORT" "Reality Vision"; then
-			install_reality_vision
+		reality_port_status="$(detect_tcp_port_status "$REALITY_PORT")"
+		if [[ "$reality_port_status" == managed\ by\ this\ project:* ]]; then
+			ALL_REALITY_STATUS="installed / managed by this project"
+			log "Reality skipped because an existing managed install was detected"
+		elif [[ "$reality_port_status" == "occupied" ]] && ! is_simulation; then
+			ALL_REALITY_STATUS="skipped: TCP ${REALITY_PORT} conflict"
+			all_failed=1
+			warn "Reality skipped: TCP ${REALITY_PORT} is occupied by an unknown process"
+		else
+			log "starting Reality"
+			if install_reality_vision; then
+				ALL_REALITY_STATUS="installed"
+				log "Reality success"
+			else
+				ALL_REALITY_STATUS="failed"
+				all_failed=1
+				warn "Reality failed"
+			fi
 		fi
 	else
 		write_reality_skipped_notice
+		ALL_REALITY_STATUS="skipped: INSTALL_REALITY=false"
 	fi
 
 	if should_install_hy2; then
-		if can_use_udp_port "$HY2_PORT"; then
-			install_hy2_stealth
+		hy2_port_status="$(detect_udp_port_status "$HY2_PORT")"
+		if [[ "$hy2_port_status" == managed\ by\ this\ project:* ]]; then
+			ALL_HY2_STATUS="installed / managed by this project"
+			log "HY2 skipped because an existing managed install was detected"
+		elif [[ "$hy2_port_status" == local\ socket\ occupied* ]] && ! is_simulation; then
+			ALL_HY2_STATUS="skipped: UDP ${HY2_PORT} conflict"
+			all_failed=1
+			warn "HY2 skipped: UDP ${HY2_PORT} appears occupied by an unknown process"
+		else
+			log "starting HY2"
+			if install_hy2_stealth; then
+				ALL_HY2_STATUS="installed"
+				log "HY2 success"
+			else
+				ALL_HY2_STATUS="failed"
+				all_failed=1
+				warn "HY2 failed"
+			fi
 		fi
 	else
 		write_hy2_skipped_notice
+		ALL_HY2_STATUS="skipped: INSTALL_HY2=false"
 	fi
 
 	if should_install_xhttp; then
-		if can_use_tcp_port "$XHTTP_HTTPS_PORT" "XHTTP + Caddy"; then
-			install_xhttp_cdn
+		xhttp_port_status="$(detect_tcp_port_status "$XHTTP_HTTPS_PORT")"
+		if [[ "$xhttp_port_status" == managed\ by\ this\ project:* ]]; then
+			ALL_XHTTP_STATUS="installed / managed by this project"
+			log "XHTTP skipped because an existing managed install was detected"
+		elif [[ "$xhttp_port_status" == "occupied" ]] && ! is_simulation; then
+			ALL_XHTTP_STATUS="skipped: TCP ${XHTTP_HTTPS_PORT} conflict"
+			all_failed=1
+			warn "XHTTP skipped: TCP ${XHTTP_HTTPS_PORT} is occupied by an unknown process"
+		else
+			log "starting XHTTP"
+			if install_xhttp_cdn; then
+				ALL_XHTTP_STATUS="installed"
+				log "XHTTP success"
+			else
+				ALL_XHTTP_STATUS="failed"
+				all_failed=1
+				warn "XHTTP failed"
+			fi
 		fi
 	else
 		write_xhttp_skipped_notice
+		ALL_XHTTP_STATUS="skipped: INSTALL_XHTTP=false"
 	fi
+
+	log "starting Firewall"
+	log "Firewall success: ports are handled during each scheme install"
+	log "starting Summary"
+	print_all_summary
+	return "$all_failed"
+}
+
+print_all_summary() {
+	cat <<EOF
+Install summary
+Reality: ${ALL_REALITY_STATUS}
+Hysteria2: ${ALL_HY2_STATUS}
+XHTTP+Caddy: ${ALL_XHTTP_STATUS}
+BBR: ${ALL_BBR_STATUS}
+Firewall: ${ALL_FIREWALL_STATUS}
+credentials path: ${CREDENTIALS_FILE}
+EOF
+	log "final summary: Reality=${ALL_REALITY_STATUS}; Hysteria2=${ALL_HY2_STATUS}; XHTTP+Caddy=${ALL_XHTTP_STATUS}; BBR=${ALL_BBR_STATUS}; Firewall=${ALL_FIREWALL_STATUS}"
 }
 
 main() {

@@ -59,3 +59,31 @@ setup() {
   run bash -c "cd '$REPO_ROOT' && grep -R --exclude-dir=.git --exclude-dir='tests/tmp' -E '(vless|hysteria2)://' ."
   [ "$status" -ne 0 ]
 }
+
+@test "install log redacts sensitive-looking values" {
+  run bash -c "
+    set -euo pipefail
+    PROJECT_ROOT='$REPO_ROOT'
+    TEST_MODE=true
+    DRY_RUN=false
+    TEST_TMP_DIR=\"\$PROJECT_ROOT/tests/tmp\"
+    . \"\$PROJECT_ROOT/lib/common.sh\"
+    init_runtime \"\$PROJECT_ROOT\"
+    apply_default_config
+    configure_runtime_paths
+    scheme='vless'
+    uuid_a='11111111'
+    uuid_b='2222'
+    uuid_c='3333'
+    uuid_d='4444'
+    uuid_e='555555555555'
+    uuid=\"\${uuid_a}-\${uuid_b}-\${uuid_c}-\${uuid_d}-\${uuid_e}\"
+    secret_a='AAAAAAAAAAAAAAAAAA'
+    secret=\"\${secret_a}\${secret_a}\${secret_a}\"
+    log \"privateKey=\${secret} password=\${secret} \${scheme}://example.invalid \${uuid}\"
+    ! grep -q \"\${secret}\" \"\$INSTALL_LOG_FILE\"
+    ! grep -q \"\${scheme}://\" \"\$INSTALL_LOG_FILE\"
+    ! grep -q \"\${uuid}\" \"\$INSTALL_LOG_FILE\"
+  "
+  [ "$status" -eq 0 ]
+}

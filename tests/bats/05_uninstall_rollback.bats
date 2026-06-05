@@ -340,6 +340,26 @@ debug_failure_context() {
   grep -q 'ufw allow 443/tcp' "$REPO_ROOT/tests/tmp/mock-calls.log"
   grep -q 'ufw allow 8443/udp' "$REPO_ROOT/tests/tmp/mock-calls.log"
   grep -q 'ufw allow 2053/tcp' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  [[ "$output" == *"Install summary"* ]]
+  [[ "$output" == *"Reality: installed"* ]]
+  [[ "$output" == *"Hysteria2: installed"* ]]
+  [[ "$output" == *"XHTTP+Caddy: installed"* ]]
+  [[ "$output" == *"credentials path:"* ]]
+}
+
+@test "all continues to XHTTP when HY2 fails after Reality succeeds" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 HY2_DOMAIN=hy2.example.com XHTTP_DOMAIN=cdn.example.com EMAIL=me@example.com \
+    MOCK_SYSTEMCTL_FAIL_SERVICE=hysteria-server bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -ne 0 ]
+  grep -q 'xray x25519' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart hysteria-server' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'caddy version' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'caddy validate --config' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  grep -q 'systemctl restart caddy' "$REPO_ROOT/tests/tmp/mock-calls.log"
+  [[ "$output" == *"Reality: installed"* ]]
+  [[ "$output" == *"Hysteria2: failed"* ]]
+  [[ "$output" == *"XHTTP+Caddy: installed"* ]]
+  [[ "$output" != *"://"* ]]
 }
 
 @test "caddy validate failure restores previous Caddyfile" {

@@ -33,11 +33,11 @@ install_xhttp_cdn() {
 		return 0
 	fi
 
-	install_xray_core
-	install_caddy
+	install_xray_core || return 1
+	install_caddy || return 1
 	allow_firewall_port "$(effective_export_port "$XHTTP_HTTPS_PORT" "$XHTTP_EXTERNAL_PORT")" tcp
-	stage_xray_config_with_rollback "$rendered_xray_config" "$XRAY_XHTTP_CONFIG_FILE" xray
-	stage_caddy_config_with_rollback "$CADDY_RENDERED_CONFIG_FILE"
+	stage_xray_config_with_rollback "$rendered_xray_config" "$XRAY_XHTTP_CONFIG_FILE" xray || return 1
+	stage_caddy_config_with_rollback "$CADDY_RENDERED_CONFIG_FILE" || return 1
 	write_xhttp_client_exports
 	credentials_notice
 }

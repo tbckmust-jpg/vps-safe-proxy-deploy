@@ -8,7 +8,7 @@ install_reality_vision() {
 	REALITY_SHORT_ID="${REALITY_SHORT_ID:-$(random_hex 8)}"
 
 	if ! is_dry_run; then
-		install_xray_core
+		install_xray_core || return 1
 	fi
 
 	if ! generate_reality_keypair; then
@@ -30,7 +30,7 @@ install_reality_vision() {
 	fi
 
 	allow_firewall_port "$(effective_export_port "$REALITY_PORT" "$REALITY_EXTERNAL_PORT")" tcp
-	stage_xray_config_with_rollback "$rendered_config" "$XRAY_REALITY_CONFIG_FILE" xray
+	stage_xray_config_with_rollback "$rendered_config" "$XRAY_REALITY_CONFIG_FILE" xray || return 1
 	write_reality_client_exports
 	credentials_notice
 }

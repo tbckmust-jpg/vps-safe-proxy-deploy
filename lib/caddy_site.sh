@@ -14,8 +14,8 @@ install_caddy() {
 		return 0
 	fi
 
-	install_system_dependencies
-	install_packages caddy
+	install_system_dependencies || return 1
+	install_packages caddy || return 1
 }
 
 render_caddy_site() {

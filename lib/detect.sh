@@ -47,15 +47,81 @@ detect_proc_port() {
 	return 1
 }
 
+detect_port_process_hint() {
+	local proto="$1"
+	local port="$2"
+	local upper_proto override_name override_value ss_output line
+	local -a ss_args
+
+	upper_proto="$(printf '%s' "$proto" | tr '[:lower:]' '[:upper:]')"
+	override_name="DETECT_${upper_proto}_${port}_PROCESS"
+	override_value="${!override_name:-}"
+	if [[ -n "$override_value" ]]; then
+		printf '%s\n' "$override_value"
+		return 0
+	fi
+
+	command -v ss >/dev/null 2>&1 || return 1
+	if [[ "$proto" == "tcp" ]]; then
+		ss_args=(-H -ltnp)
+	else
+		ss_args=(-H -lunp)
+	fi
+
+	ss_output="$(ss "${ss_args[@]}" 2>/dev/null || true)"
+	line="$(printf '%s\n' "$ss_output" | grep -E "[:.]${port}[[:space:]]" | head -n 1 || true)"
+	[[ -n "$line" ]] || return 1
+	printf '%s\n' "$line"
+}
+
+detect_managed_port_service() {
+	local proto="$1"
+	local port="$2"
+	local process_hint
+
+	process_hint="$(detect_port_process_hint "$proto" "$port" || true)"
+	[[ -n "$process_hint" ]] || return 1
+
+	if [[ "$proto" == "tcp" && "$port" == "$REALITY_PORT" && "$process_hint" == *xray* && -e "$XRAY_REALITY_CONFIG_FILE" ]]; then
+		printf 'xray\n'
+		return 0
+	fi
+
+	if [[ "$proto" == "tcp" && "$port" == "$XHTTP_HTTPS_PORT" && "$process_hint" == *caddy* && -e "$CADDY_CONFIG_FILE" ]]; then
+		printf 'caddy\n'
+		return 0
+	fi
+
+	if [[ "$proto" == "udp" && "$port" == "$HY2_PORT" && "$process_hint" == *hysteria* && -e "$HY2_CONFIG_FILE" ]]; then
+		printf 'hysteria\n'
+		return 0
+	fi
+
+	return 1
+}
+
 detect_tcp_port_status() {
 	local port="$1"
 	local override_name="DETECT_TCP_${port}_STATUS"
 	local override_value="${!override_name:-}"
+	local managed_service
 
 	if [[ -n "$override_value" ]]; then
+		if [[ "$override_value" == "occupied" ]]; then
+			managed_service="$(detect_managed_port_service tcp "$port" || true)"
+			if [[ -n "$managed_service" ]]; then
+				printf 'managed by this project: %s\n' "$managed_service"
+				return 0
+			fi
+		fi
 		printf '%s\n' "$override_value"
 	elif detect_proc_port tcp "$port"; then
-		printf 'occupied\n'
+		managed_service="$(detect_managed_port_service tcp "$port" || true)"
+		if [[ -n "$managed_service" ]]; then
+			printf 'managed by this project: %s\n' "$managed_service"
+		else
+			printf 'occupied\n'
+		fi
 	else
 		printf 'free\n'
 	fi
@@ -65,12 +131,25 @@ detect_udp_port_status() {
 	local port="$1"
 	local override_name="DETECT_UDP_${port}_STATUS"
 	local override_value="${!override_name:-}"
+	local managed_service
 
 	if [[ -n "$override_value" ]]; then
+		if [[ "$override_value" == local\ socket\ occupied* || "$override_value" == "occupied" ]]; then
+			managed_service="$(detect_managed_port_service udp "$port" || true)"
+			if [[ -n "$managed_service" ]]; then
+				printf 'managed by this project: %s\n' "$managed_service"
+				return 0
+			fi
+		fi
 		printf '%s\n' "$override_value"
 	elif [[ -r /proc/net/udp || -r /proc/net/udp6 ]]; then
 		if detect_proc_port udp "$port"; then
-			printf 'local socket occupied; external mapping unknown\n'
+			managed_service="$(detect_managed_port_service udp "$port" || true)"
+			if [[ -n "$managed_service" ]]; then
+				printf 'managed by this project: %s\n' "$managed_service"
+			else
+				printf 'local socket occupied; external mapping unknown\n'
+			fi
 		else
 			printf 'no local listener; external mapping unknown\n'
 		fi
@@ -151,6 +230,8 @@ detect_reality_status() {
 		printf 'skipped because INSTALL_REALITY=false\n'
 	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
 		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
+	elif [[ "$tcp443_status" == managed\ by\ this\ project:* ]]; then
+		printf 'installed / managed by this project\n'
 	elif [[ "$tcp443_status" == "occupied" ]]; then
 		printf 'unsupported: TCP 443 is occupied\n'
 	else
@@ -165,6 +246,8 @@ detect_hy2_status() {
 		printf 'skipped because INSTALL_HY2=false\n'
 	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
 		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
+	elif [[ "$udp8443_status" == managed\ by\ this\ project:* ]]; then
+		printf 'installed / managed by this project\n'
 	elif [[ "$udp8443_status" == local\ socket\ occupied* ]]; then
 		printf 'unsupported: UDP 8443 appears occupied\n'
 	elif is_true "${NAT_MODE:-false}" && ! is_true "${HY2_UDP_MAPPED:-false}"; then
@@ -181,6 +264,8 @@ detect_xhttp_status() {
 		printf 'skipped because INSTALL_XHTTP=false\n'
 	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
 		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
+	elif [[ "$tcp2053_status" == managed\ by\ this\ project:* ]]; then
+		printf 'installed / managed by this project\n'
 	elif [[ "$tcp2053_status" == "occupied" ]]; then
 		printf 'unsupported: TCP 2053 is occupied\n'
 	else

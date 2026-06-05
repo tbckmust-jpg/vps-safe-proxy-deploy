@@ -6,11 +6,35 @@ die() {
 }
 
 log() {
-	printf '[vps-safe-proxy] %s\n' "$*"
+	local message="[vps-safe-proxy] $*"
+	printf '%s\n' "$message"
+	write_install_log "INFO" "$*"
 }
 
 warn() {
-	printf '[vps-safe-proxy] WARN: %s\n' "$*" >&2
+	local message="[vps-safe-proxy] WARN: $*"
+	printf '%s\n' "$message" >&2
+	write_install_log "WARN" "$*"
+}
+
+redact_log_message() {
+	printf '%s' "$*" \
+		| sed -E 's#(vless|hysteria2)://[^[:space:]]+#<redacted-node-link>#g' \
+		| sed -E 's#[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}#<redacted-uuid>#g' \
+		| sed -E 's#([Pp]rivate[Kk]ey|[Pp]assword|[Pp]asswd|[Ss]ecret|[Tt]oken|[Kk]ey)[[:space:]]*[:=][[:space:]]*[^[:space:]]+#\1=<redacted>#g'
+}
+
+write_install_log() {
+	local level="$1"
+	shift
+	local log_file="${INSTALL_LOG_FILE:-}"
+	local message timestamp
+
+	[[ -n "$log_file" ]] || return 0
+	message="$(redact_log_message "$*")"
+	timestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf 'unknown-time')"
+	mkdir -p "$(dirname "$log_file")" 2>/dev/null || return 0
+	printf '%s [%s] %s\n' "$timestamp" "$level" "$message" >>"$log_file" 2>/dev/null || true
 }
 
 is_true() {
@@ -90,6 +114,7 @@ configure_runtime_paths() {
 		ROOT_DIR="${ROOT_DIR:-${TEST_TMP_DIR}/root}"
 		ETC_DIR="${ETC_DIR:-${TEST_TMP_DIR}/etc}"
 		LOG_DIR="${LOG_DIR:-${TEST_TMP_DIR}/log}"
+		INSTALL_LOG_FILE="${INSTALL_LOG_FILE:-${LOG_DIR}/vps-oneclick-install.log}"
 		CREDENTIALS_FILE="${CREDENTIALS_FILE:-${ROOT_DIR}/vps-oneclick/credentials.txt}"
 		RENDER_DIR="${RENDER_DIR:-${TEST_TMP_DIR}/render}"
 		BACKUP_DIR="${BACKUP_DIR:-${TEST_TMP_DIR}/backups}"
@@ -100,6 +125,7 @@ configure_runtime_paths() {
 		ROOT_DIR="${ROOT_DIR:-/root/vps-oneclick}"
 		ETC_DIR="${ETC_DIR:-/usr/local/etc}"
 		LOG_DIR="${LOG_DIR:-/var/log/vps-oneclick}"
+		INSTALL_LOG_FILE="${INSTALL_LOG_FILE:-/var/log/vps-oneclick-install.log}"
 		CREDENTIALS_FILE="${CREDENTIALS_FILE:-/root/vps-oneclick/credentials.txt}"
 		RENDER_DIR="${RENDER_DIR:-${ROOT_DIR}/rendered}"
 		BACKUP_DIR="${BACKUP_DIR:-${ROOT_DIR}/backups}"
@@ -124,6 +150,7 @@ configure_runtime_paths() {
 	fi
 
 	export ROOT_DIR ETC_DIR LOG_DIR CREDENTIALS_FILE RENDER_DIR BACKUP_DIR APP_DATA_DIR
+	export INSTALL_LOG_FILE
 	export BIN_DIR SYSTEMD_DIR SYSCTL_BBR_FILE
 	export XRAY_CONFIG_FILE XRAY_REALITY_CONFIG_FILE XRAY_XHTTP_CONFIG_FILE
 	export HY2_CONFIG_FILE HY2_CLIENT_CONFIG_FILE CADDY_CONFIG_FILE CADDY_SITE_DIR CADDY_RENDERED_CONFIG_FILE
@@ -283,6 +310,7 @@ normalize_simulation_paths() {
 	ROOT_DIR="$(absolute_project_path "$ROOT_DIR")"
 	ETC_DIR="$(absolute_project_path "$ETC_DIR")"
 	LOG_DIR="$(absolute_project_path "$LOG_DIR")"
+	INSTALL_LOG_FILE="$(absolute_project_path "$INSTALL_LOG_FILE")"
 	CREDENTIALS_FILE="$(absolute_project_path "$CREDENTIALS_FILE")"
 	RENDER_DIR="$(absolute_project_path "$RENDER_DIR")"
 	BACKUP_DIR="$(absolute_project_path "$BACKUP_DIR")"
@@ -319,6 +347,7 @@ validate_simulation_paths() {
 	ensure_test_tmp_path ROOT_DIR "$ROOT_DIR"
 	ensure_test_tmp_path ETC_DIR "$ETC_DIR"
 	ensure_test_tmp_path LOG_DIR "$LOG_DIR"
+	ensure_test_tmp_path INSTALL_LOG_FILE "$INSTALL_LOG_FILE"
 	ensure_test_tmp_path CREDENTIALS_FILE "$CREDENTIALS_FILE"
 	ensure_test_tmp_path RENDER_DIR "$RENDER_DIR"
 	ensure_test_tmp_path BACKUP_DIR "$BACKUP_DIR"
