@@ -92,6 +92,11 @@ detect_managed_port_service() {
 		return 0
 	fi
 
+	if [[ "$proto" == "tcp" && "$port" == "$XHTTP_INTERNAL_PORT" && "$process_hint" == *xray* && -e "$XRAY_XHTTP_CONFIG_FILE" ]]; then
+		printf 'xray\n'
+		return 0
+	fi
+
 	if [[ "$proto" == "udp" && "$port" == "$HY2_PORT" && "$process_hint" == *hysteria* && -e "$HY2_CONFIG_FILE" ]]; then
 		printf 'hysteria\n'
 		return 0
@@ -185,6 +190,33 @@ detect_public_host_for_matrix() {
 	printf 'unavailable; set PUBLIC_HOST=1.2.3.4 to override\n'
 }
 
+detect_file_mode() {
+	local file="$1"
+
+	if command -v stat >/dev/null 2>&1; then
+		stat -c '%a' "$file" 2>/dev/null && return 0
+		stat -f '%Lp' "$file" 2>/dev/null && return 0
+	fi
+
+	printf 'unknown\n'
+}
+
+detect_credentials_status() {
+	local mode
+
+	if [[ ! -e "$CREDENTIALS_FILE" ]]; then
+		printf 'missing\n'
+		return 0
+	fi
+
+	mode="$(detect_file_mode "$CREDENTIALS_FILE")"
+	if [[ "$mode" == "600" ]]; then
+		printf 'present; mode 600\n'
+	else
+		printf 'present; mode %s; expected 600\n' "$mode"
+	fi
+}
+
 detect_bbr_matrix_status() {
 	local kernel_status
 
@@ -195,7 +227,7 @@ detect_bbr_matrix_status() {
 		else
 			printf 'unavailable or unknown in container\n'
 		fi
-	elif [[ "${SUPPORT_LEVEL:-unsupported}" == "full install candidate" ]]; then
+	elif platform_real_install_supported; then
 		if [[ "$kernel_status" == "supported" ]]; then
 			printf 'supported\n'
 		else
@@ -228,7 +260,7 @@ detect_reality_status() {
 
 	if ! should_install_reality; then
 		printf 'skipped because INSTALL_REALITY=false\n'
-	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
+	elif ! platform_real_install_supported; then
 		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
 	elif [[ "$tcp443_status" == managed\ by\ this\ project:* ]]; then
 		printf 'installed / managed by this project\n'
@@ -244,7 +276,7 @@ detect_hy2_status() {
 
 	if ! should_install_hy2; then
 		printf 'skipped because INSTALL_HY2=false\n'
-	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
+	elif ! platform_real_install_supported; then
 		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
 	elif [[ "$udp8443_status" == managed\ by\ this\ project:* ]]; then
 		printf 'installed / managed by this project\n'
@@ -262,7 +294,7 @@ detect_xhttp_status() {
 
 	if ! should_install_xhttp; then
 		printf 'skipped because INSTALL_XHTTP=false\n'
-	elif [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
+	elif ! platform_real_install_supported; then
 		printf '%s\n' "${SUPPORT_LEVEL:-unsupported}"
 	elif [[ "$tcp2053_status" == managed\ by\ this\ project:* ]]; then
 		printf 'installed / managed by this project\n'
@@ -275,7 +307,7 @@ detect_xhttp_status() {
 
 show_detect_matrix() {
 	local bbr_status bbr_scheme_status public_host_result systemd_supported
-	local tcp443_status tcp2053_status udp8443_status
+	local credentials_status tcp10085_status tcp443_status tcp2053_status udp8443_status
 
 	detect_platform
 	if [[ "${SERVICE_MANAGER:-unknown}" == "systemd" ]]; then
@@ -286,10 +318,12 @@ show_detect_matrix() {
 
 	tcp443_status="$(detect_tcp_port_status 443)"
 	tcp2053_status="$(detect_tcp_port_status 2053)"
+	tcp10085_status="$(detect_tcp_port_status "$XHTTP_INTERNAL_PORT")"
 	udp8443_status="$(detect_udp_port_status 8443)"
 	public_host_result="$(detect_public_host_for_matrix)"
 	bbr_status="$(detect_bbr_matrix_status)"
 	bbr_scheme_status="$(detect_bbr_scheme_status "$bbr_status")"
+	credentials_status="$(detect_credentials_status)"
 
 	cat <<EOF
 Capability Matrix
@@ -313,9 +347,11 @@ unzip: $(detect_dependency_status unzip)
 openssl: $(detect_dependency_status openssl)
 TCP 443: ${tcp443_status}
 TCP 2053: ${tcp2053_status}
+TCP ${XHTTP_INTERNAL_PORT}: ${tcp10085_status}
 UDP 8443: ${udp8443_status}
 NAT_MODE: ${NAT_MODE}
 PUBLIC_HOST: ${public_host_result}
+Credentials: ${credentials_status}
 
 Scheme Status
 Reality Vision: $(detect_reality_status "$tcp443_status")

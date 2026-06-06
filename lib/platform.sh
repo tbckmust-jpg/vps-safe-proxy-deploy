@@ -325,18 +325,28 @@ detect_platform() {
 	elif ! platform_package_manager_supported; then
 		SUPPORT_LEVEL="unsupported"
 		SUPPORT_REASON="unsupported or missing package manager"
+	elif [[ "${OS_ID:-unknown}" == "debian" && "${OS_VERSION_ID:-unknown}" == "13" && "${ARCH:-unknown}" == "x86_64" && "${VIRT_TYPE:-unknown}" == "KVM" ]]; then
+		SUPPORT_LEVEL="verified"
+		SUPPORT_REASON="Debian 13 KVM x86_64 has completed real all/detect/status/uninstall/reinstall verification"
 	else
-		SUPPORT_LEVEL="full install candidate"
-		SUPPORT_REASON="systemd, root, supported architecture, and supported package manager detected"
+		SUPPORT_LEVEL="candidate"
+		SUPPORT_REASON="systemd, root, supported architecture, and supported package manager detected; real provider behavior still needs verification"
 	fi
 
 	export OS_ID OS_VERSION_ID OS_NAME OS_PRETTY_NAME OS_FAMILY
 	export INIT_SYSTEM PACKAGE_MANAGER SERVICE_MANAGER ARCH VIRT_TYPE IS_CONTAINER IS_ROOT SUPPORT_LEVEL SUPPORT_REASON
 }
 
+platform_real_install_supported() {
+	case "${SUPPORT_LEVEL:-unsupported}" in
+	verified | candidate) return 0 ;;
+	*) return 1 ;;
+	esac
+}
+
 require_full_install_candidate() {
 	detect_platform
-	if [[ "${SUPPORT_LEVEL:-unsupported}" != "full install candidate" ]]; then
+	if ! platform_real_install_supported; then
 		die "real installation is not supported on this platform: ${SUPPORT_LEVEL}; ${SUPPORT_REASON}. Use ./install.sh detect or --dry-run."
 	fi
 }

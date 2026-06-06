@@ -78,7 +78,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-
 
 ## 平台支持策略
 
-`full install candidate` 不等于 100% 保证成功。它只表示当前机器看起来满足真实安装的基础条件：root、systemd、受支持 CPU 架构、受支持包管理器，并且对应方案的本地端口没有明显冲突。真实可用仍取决于系统软件源、systemd 行为、架构、端口、防火墙、服务商网络、NAT 转发和 UDP 映射。
+`candidate` 不等于 100% 保证成功。它只表示当前机器看起来满足真实安装的基础条件：root、systemd、受支持 CPU 架构、受支持包管理器，并且对应方案的本地端口没有明显冲突。真实可用仍取决于系统软件源、systemd 行为、架构、端口、防火墙、服务商网络、NAT 转发和 UDP 映射。
 
 完整安装的主目标是带 systemd 的 Linux VPS。当前平台适配器会识别：
 
@@ -307,26 +307,32 @@ Recommended stable Debian 13 KVM command:
 bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/v0.5.3-debian13-kvm-hy2-v2rayn-fix/bootstrap.sh) all
 ```
 
-Cross-platform candidate command, after `v0.6.0-cross-platform-candidate` is published:
+Cross-platform open candidate command:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/v0.6.0-cross-platform-candidate/bootstrap.sh) all
+bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/v0.7.0-cross-platform-open/bootstrap.sh) all
 ```
 
 `main` is for development and regression testing. For normal reuse, prefer a tag.
 
 Support levels:
 
+- `verified`: real VPS regression completed, including `all`, `detect`, `status`, idempotent `all`, `uninstall`, `reinstall`, service state, listening ports, credentials structure, log redaction, and client export checks.
+- `candidate`: CI fixtures, mocks, and test-mode paths pass, but no real VPS verification has been completed for that platform.
+- `dry-run only`: `detect` and `--dry-run` are allowed, but real installation exits safely without writing system service config.
+- `unsupported`: real installation exits safely because required platform capabilities are missing.
+
 | Platform | Level |
 | --- | --- |
 | Debian 13 KVM x86_64 systemd | verified |
-| Debian 11/12/13, Ubuntu 20.04/22.04/24.04 with systemd | candidate |
+| Debian 12, Ubuntu 22.04, Ubuntu 24.04 with systemd | candidate |
 | Fedora, Rocky, AlmaLinux, RHEL, CentOS Stream with systemd | candidate |
 | Arch Linux with systemd | candidate |
 | openSUSE with systemd | candidate |
 | arm64/aarch64 systemd VPS | candidate |
-| Alpine/OpenRC | detect and dry-run only |
-| LXC/Docker/container | limited candidate; BBR/firewall/network may be restricted |
+| Alpine/OpenRC | dry-run only |
+| LXC/Docker/container without full systemd privileges | dry-run only or unsupported |
+| privileged systemd container | limited candidate; BBR/firewall/sysctl/network may be restricted |
 | NAT VPS | candidate with explicit external ports; HY2 requires UDP mapping |
 | unknown init or unknown package manager | unsupported for real install |
 
@@ -338,15 +344,19 @@ Useful commands:
 ./install.sh detect
 ./install.sh all
 ./install.sh status
+./install.sh verify-exports
 ./install.sh uninstall
 ```
 
 Production credentials are written to `/root/vps-oneclick/credentials.txt`. Do not publish this file. If it leaks, rerun `all`; the installer backs up the old credentials and regenerates a fresh file.
 
+`verify-exports` checks the credentials structure without printing secret values. It reports PASS/FAIL for section deduplication, v2rayN links, sing-box outbounds, HY2 pinned/self-signed exports, XHTTP no-domain TLS mode, and file permissions.
+
 HY2 notes for v2rayN:
 
 - HY2 needs UDP 8443 to be reachable.
 - No-domain self-signed mode needs insecure verification or certificate pinning.
+- Prefer `Hysteria2-Stealth-Xray` / `v2rayN_xray_uri` in v2rayN when using Xray core. `Hysteria2-Stealth` is the native/general export.
 - Recent Xray cores removed the old `allowInsecure` field; use `v2rayN_xray_uri` from credentials, or use sing-box core / sing-box outbound / `hysteria-client.yaml`.
 - Reality and XHTTP passing only proves TCP works; it does not prove UDP 8443 works.
 
@@ -355,3 +365,9 @@ XHTTP notes:
 - No-domain mode is a downgrade mode and exports non-TLS XHTTP.
 - With no `XHTTP_DOMAIN`, v2rayN should use `security=none`.
 - Full TLS camouflage requires a real `XHTTP_DOMAIN`.
+
+Reality notes:
+
+- Reality Vision listens on TCP 443 by default.
+- Clients must support Reality and XTLS Vision.
+- The installer never prints the complete Reality link to the terminal; read it only from the credentials file.

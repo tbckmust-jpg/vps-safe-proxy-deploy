@@ -35,6 +35,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/lib/uninstall.sh"
 # shellcheck source=lib/detect.sh
 . "${SCRIPT_DIR}/lib/detect.sh"
+# shellcheck source=lib/verify_exports.sh
+. "${SCRIPT_DIR}/lib/verify_exports.sh"
 
 usage() {
 	cat <<'USAGE'
@@ -48,6 +50,8 @@ Commands:
 	bbr        Detect and enable BBR when supported
 	detect     Show a read-only platform capability matrix
 	status     Show service status
+	verify-exports
+	           Check generated client exports without printing secrets
 	uninstall  Remove installed services; keeps credentials unless --purge
 USAGE
 }
@@ -303,6 +307,9 @@ main() {
 		;;
 	status)
 		show_status
+		;;
+	verify-exports)
+		verify_exports
 		;;
 	uninstall)
 		uninstall_all

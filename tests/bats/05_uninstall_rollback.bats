@@ -126,6 +126,54 @@ debug_failure_context() {
   [ "$status" -eq 0 ]
 }
 
+@test "uninstall removes project configs but preserves credentials and backups by default" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -eq 0 ]
+
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -eq 0 ]
+
+  [ -f "$REPO_ROOT/tests/tmp/etc/xray/xray-reality-vision.json" ]
+  [ -f "$REPO_ROOT/tests/tmp/etc/xray/xray-xhttp.json" ]
+  [ -f "$REPO_ROOT/tests/tmp/etc/hysteria/hysteria-server.yaml" ]
+  [ -f "$REPO_ROOT/tests/tmp/etc/caddy/Caddyfile" ]
+  [ -f "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+  [ "$(find "$REPO_ROOT/tests/tmp/backups" -name 'credentials-*.txt' -type f | wc -l)" -ge 1 ]
+
+  run env -i PATH="$PATH" \
+    bash "$REPO_ROOT/install.sh" uninstall --test-mode
+  [ "$status" -eq 0 ]
+  [ ! -e "$REPO_ROOT/tests/tmp/etc/xray/xray-reality-vision.json" ]
+  [ ! -e "$REPO_ROOT/tests/tmp/etc/xray/xray-xhttp.json" ]
+  [ ! -e "$REPO_ROOT/tests/tmp/etc/hysteria/hysteria-server.yaml" ]
+  [ ! -e "$REPO_ROOT/tests/tmp/etc/caddy/Caddyfile" ]
+  [ -f "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+  [ "$(find "$REPO_ROOT/tests/tmp/backups" -name 'credentials-*.txt' -type f | wc -l)" -ge 1 ]
+  [[ "$output" == *"project configs removed"* ]]
+  [[ "$output" == *"credentials preserved"* ]]
+}
+
+@test "uninstall purge removes credentials and credential backups" {
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -eq 0 ]
+
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 \
+    bash "$REPO_ROOT/install.sh" all --test-mode
+  [ "$status" -eq 0 ]
+  [ -f "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+  [ "$(find "$REPO_ROOT/tests/tmp/backups" -name 'credentials-*.txt' -type f | wc -l)" -ge 1 ]
+
+  run env -i PATH="$PATH" \
+    bash "$REPO_ROOT/install.sh" uninstall --purge --test-mode
+  [ "$status" -eq 0 ]
+  [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+  [ ! -d "$REPO_ROOT/tests/tmp/backups" ]
+  [[ "$output" == *"credentials and credential backups removed by --purge"* ]]
+}
+
 @test "credentials helpers restore caller umask" {
   run bash -c "
     set -euo pipefail

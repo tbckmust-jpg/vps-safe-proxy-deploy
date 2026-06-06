@@ -12,27 +12,30 @@ run_candidate_detect() {
   run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/${fixture}" \
     DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_ARCH=x86_64 \
     DETECT_PACKAGE_MANAGER="$manager" DETECT_BBR_AVAILABLE=true \
-    DETECT_TCP_443_STATUS=free DETECT_TCP_2053_STATUS=free DETECT_UDP_8443_STATUS="no local listener; external mapping unknown" \
+    DETECT_TCP_443_STATUS=free DETECT_TCP_2053_STATUS=free DETECT_TCP_10085_STATUS=free DETECT_UDP_8443_STATUS="no local listener; external mapping unknown" \
     bash "$REPO_ROOT/install.sh" detect --test-mode
 }
 
 assert_full_candidate() {
   local manager="$1"
+  local level="${2:-candidate}"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Package manager: ${manager}"* ]]
   [[ "$output" == *"Service manager: systemd"* ]]
-  [[ "$output" == *"Support level: full install candidate"* ]]
+  [[ "$output" == *"Support level: ${level}"* ]]
   [[ "$output" == *"Reality Vision: full install candidate"* ]]
   [[ "$output" == *"Hysteria2: full install candidate with UDP warning"* ]]
   [[ "$output" == *"XHTTP + Caddy: full install candidate"* ]]
   [[ "$output" == *"BBR: supported"* ]]
+  [[ "$output" == *"TCP 10085: free"* ]]
+  [[ "$output" == *"Credentials: missing"* ]]
   [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
 }
 
-@test "detect reports Debian 13 apt systemd root as full install candidate" {
+@test "detect reports Debian 13 apt systemd root as verified platform" {
   run_candidate_detect os-release-debian13 apt
   [[ "$output" == *"OS: Debian GNU/Linux 13 (trixie)"* ]]
-  assert_full_candidate apt
+  assert_full_candidate apt verified
 }
 
 @test "detect reports Debian 12 apt systemd root as full install candidate" {
@@ -120,7 +123,7 @@ assert_full_candidate() {
     bash "$REPO_ROOT/install.sh" detect --test-mode
   [ "$status" -eq 0 ]
   [[ "$output" == *"Architecture: aarch64"* ]]
-  [[ "$output" == *"Support level: full install candidate"* ]]
+  [[ "$output" == *"Support level: candidate"* ]]
   [[ "$output" == *"Reality Vision: full install candidate"* ]]
   [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
 }
@@ -145,7 +148,7 @@ assert_full_candidate() {
     DETECT_MISSING_COMMANDS="unzip" DETECT_TCP_443_STATUS=free DETECT_TCP_2053_STATUS=free \
     bash "$REPO_ROOT/install.sh" detect --test-mode
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Support level: full install candidate"* ]]
+  [[ "$output" == *"Support level: verified"* ]]
   [[ "$output" == *"unzip: missing; installable via apt"* ]]
   [[ "$output" == *"Reality Vision: full install candidate"* ]]
   [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
@@ -191,12 +194,14 @@ assert_full_candidate() {
 @test "detect treats project-managed xray on 443 as installed" {
   mkdir -p "$REPO_ROOT/tests/tmp/etc/xray"
   printf '{}' >"$REPO_ROOT/tests/tmp/etc/xray/xray-reality-vision.json"
+  printf '{}' >"$REPO_ROOT/tests/tmp/etc/xray/xray-xhttp.json"
   run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-debian13" \
     DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_ARCH=x86_64 DETECT_PACKAGE_MANAGER=apt \
-    DETECT_TCP_443_STATUS=occupied DETECT_TCP_443_PROCESS=xray DETECT_TCP_2053_STATUS=free \
+    DETECT_TCP_443_STATUS=occupied DETECT_TCP_443_PROCESS=xray DETECT_TCP_2053_STATUS=free DETECT_TCP_10085_STATUS=occupied DETECT_TCP_10085_PROCESS=xray \
     bash "$REPO_ROOT/install.sh" detect --test-mode
   [ "$status" -eq 0 ]
   [[ "$output" == *"TCP 443: managed by this project: xray"* ]]
+  [[ "$output" == *"TCP 10085: managed by this project: xray"* ]]
   [[ "$output" == *"Reality Vision: installed / managed by this project"* ]]
   [[ "$output" != *"Reality Vision: unsupported: TCP 443 is occupied"* ]]
   [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
