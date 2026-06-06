@@ -58,11 +58,19 @@ setup() {
   [ "$status" -eq 0 ]
 
   grep -q 'insecure: true' "$REPO_ROOT/tests/tmp/render/hysteria-client.yaml"
+  grep -q 'pinSHA256:' "$REPO_ROOT/tests/tmp/render/hysteria-client.yaml"
   grep -q 'self-signed mode, client must allow insecure certificate verification' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q 'cert_pin_sha256=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q 'a%2Bb%2Fc%3D' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q 'o%2Bb%2Fc%3D' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q 'insecure=1' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q 'pinSHA256=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q 'sni=203.0.113.10' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q '^hy2_uri=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  v2rayn_xray_uri_line="$(grep '^v2rayN_xray_uri=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt")"
+  [[ -n "$v2rayn_xray_uri_line" ]]
+  grep -q 'pcs=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  [[ "$v2rayn_xray_uri_line" != *"insecure=1"* ]]
   grep -q '"type":"hysteria2"' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q '"insecure":true' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q 'v2rayN_hint=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
@@ -100,7 +108,10 @@ setup() {
   [ "$status" -eq 0 ]
 
   grep -q 'insecure: false' "$REPO_ROOT/tests/tmp/render/hysteria-client.yaml"
+  ! grep -q 'pinSHA256:' "$REPO_ROOT/tests/tmp/render/hysteria-client.yaml"
   ! grep -q 'insecure=1' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  ! grep -q 'cert_pin_sha256=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  ! grep -q '^v2rayN_xray_uri=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q 'sni=hy2.example.com' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q '"type":"hysteria2"' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q '"tls":{"enabled":true,"server_name":"hy2.example.com"}' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"

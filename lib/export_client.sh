@@ -27,18 +27,24 @@ write_reality_client_exports() {
 }
 
 write_hy2_client_exports() {
-	local export_port scheme client_file encoded_password encoded_obfs encoded_sni insecure_param tls_json
+	local export_port scheme scheme_alias client_file encoded_password encoded_obfs encoded_sni encoded_pin insecure_param pin_param v2rayn_xray_param tls_json
 	export_port="${HY2_CLIENT_PORT:-$(effective_export_port "$HY2_PORT" "$HY2_EXTERNAL_PORT")}"
 	scheme="hysteria2"
+	scheme_alias="hy2"
 	client_file="$HY2_CLIENT_CONFIG_FILE"
 	encoded_password="$(url_encode "$HY2_PASSWORD")"
 	encoded_obfs="$(url_encode "$HY2_OBFS_PASSWORD")"
 	encoded_sni="$(url_encode "$HY2_DOMAIN")"
+	encoded_pin="$(url_encode "${HY2_CERT_SHA256:-}")"
 	insecure_param=""
+	pin_param=""
+	v2rayn_xray_param=""
 
 	if [[ "${HY2_TLS_MODE:-}" == "self-signed" ]]; then
 		HY2_TLS_INSECURE=true
 		insecure_param="&insecure=1"
+		pin_param="&pinSHA256=${encoded_pin}"
+		v2rayn_xray_param="&pcs=${encoded_pin}&vcn=0"
 		tls_json="\"tls\":{\"enabled\":true,\"server_name\":\"${HY2_DOMAIN}\",\"insecure\":true}"
 	else
 		HY2_TLS_INSECURE=false
@@ -56,8 +62,13 @@ write_hy2_client_exports() {
 	append_credential "v2rayN_hint=If URI import fails, use sing-box core or import the client yaml / sing-box outbound."
 	if [[ "${HY2_TLS_MODE:-}" == "self-signed" ]]; then
 		append_credential "note=self-signed mode, client must allow insecure certificate verification"
+		append_credential "cert_pin_sha256=${HY2_CERT_SHA256}"
 	fi
-	append_credential "uri=${scheme}://${encoded_password}@${PUBLIC_HOST}:${export_port}/?sni=${encoded_sni}&obfs=salamander&obfs-password=${encoded_obfs}${insecure_param}#Hysteria2-Stealth"
+	append_credential "uri=${scheme}://${encoded_password}@${PUBLIC_HOST}:${export_port}/?sni=${encoded_sni}&obfs=salamander&obfs-password=${encoded_obfs}${insecure_param}${pin_param}#Hysteria2-Stealth"
+	append_credential "hy2_uri=${scheme_alias}://${encoded_password}@${PUBLIC_HOST}:${export_port}/?sni=${encoded_sni}&obfs=salamander&obfs-password=${encoded_obfs}${insecure_param}${pin_param}#Hysteria2-Stealth"
+	if [[ "${HY2_TLS_MODE:-}" == "self-signed" ]]; then
+		append_credential "v2rayN_xray_uri=${scheme}://${encoded_password}@${PUBLIC_HOST}:${export_port}/?sni=${encoded_sni}&obfs=salamander&obfs-password=${encoded_obfs}${v2rayn_xray_param}#Hysteria2-Stealth-Xray"
+	fi
 	append_credential "sing_box_outbound={\"type\":\"hysteria2\",\"tag\":\"hysteria2-stealth\",\"server\":\"${PUBLIC_HOST}\",\"server_port\":${export_port},\"password\":\"${HY2_PASSWORD}\",${tls_json},\"obfs\":{\"type\":\"salamander\",\"password\":\"${HY2_OBFS_PASSWORD}\"}}"
 }
 

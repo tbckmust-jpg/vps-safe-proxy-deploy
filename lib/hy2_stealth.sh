@@ -102,6 +102,38 @@ ensure_hy2_self_signed_cert() {
 	chmod 600 "$HY2_KEY_FILE"
 }
 
+hy2_cert_sha256() {
+	local cert_file="$1"
+	local fingerprint
+
+	[[ -f "$cert_file" ]] || return 1
+	command -v openssl >/dev/null 2>&1 || return 1
+
+	fingerprint="$(openssl x509 -noout -fingerprint -sha256 -in "$cert_file" 2>/dev/null || true)"
+	fingerprint="${fingerprint#*=}"
+	fingerprint="${fingerprint//:/}"
+	[[ -n "$fingerprint" ]] || return 1
+	printf '%s\n' "$fingerprint" | tr '[:upper:]' '[:lower:]'
+}
+
+prepare_hy2_client_tls_export() {
+	HY2_CLIENT_PIN_LINE=""
+
+	if [[ "$HY2_TLS_MODE" == "self-signed" ]]; then
+		if [[ -z "${HY2_CERT_SHA256:-}" ]]; then
+			HY2_CERT_SHA256="$(hy2_cert_sha256 "$HY2_CERT_FILE" || true)"
+		fi
+		if [[ -z "${HY2_CERT_SHA256:-}" ]]; then
+			HY2_CERT_SHA256="$(random_hex 32)"
+		fi
+		HY2_CLIENT_PIN_LINE="  pinSHA256: ${HY2_CERT_SHA256}"
+	else
+		HY2_CERT_SHA256=""
+	fi
+
+	export HY2_CERT_SHA256 HY2_CLIENT_PIN_LINE
+}
+
 warn_udp_port_state() {
 	local port="$1"
 
@@ -169,6 +201,7 @@ install_hy2_stealth() {
 
 	if is_dry_run; then
 		cp "$rendered_config" "$HY2_CONFIG_FILE"
+		prepare_hy2_client_tls_export
 		write_hy2_client_exports
 		log "dry-run: rendered Hysteria2 config; UDP availability is not assumed"
 		credentials_notice
@@ -177,6 +210,7 @@ install_hy2_stealth() {
 
 	install_hysteria2_core || return 1
 	ensure_hy2_self_signed_cert || return 1
+	prepare_hy2_client_tls_export
 	warn_udp_port_state "$(effective_export_port "$HY2_PORT" "$HY2_EXTERNAL_PORT")"
 	allow_firewall_port "$(effective_export_port "$HY2_PORT" "$HY2_EXTERNAL_PORT")" udp
 	stage_hy2_config_with_rollback "$rendered_config" || return 1
