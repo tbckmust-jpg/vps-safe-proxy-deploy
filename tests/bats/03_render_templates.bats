@@ -62,6 +62,33 @@ setup() {
   grep -q 'a%2Bb%2Fc%3D' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q 'o%2Bb%2Fc%3D' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   grep -q 'insecure=1' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q 'sni=203.0.113.10' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q '"type":"hysteria2"' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q '"insecure":true' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q 'v2rayN_hint=' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+}
+
+@test "Hysteria2 generated secrets are URL-safe for client URI imports" {
+  rm -rf "$REPO_ROOT/tests/tmp"
+  mkdir -p "$REPO_ROOT/tests/tmp"
+
+  run env -i PATH="$PATH" PUBLIC_HOST=203.0.113.10 \
+    bash "$REPO_ROOT/install.sh" hy2 --dry-run --test-mode
+  [ "$status" -eq 0 ]
+
+  file="$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  scheme="hysteria2"
+  uri="$(grep '^uri=' "$file")"
+  uri="${uri#uri=}"
+  uri_auth="${uri#${scheme}://}"
+  uri_auth="${uri_auth%@*}"
+  uri_obfs="${uri#*obfs-password=}"
+  uri_obfs="${uri_obfs%%&*}"
+  uri_obfs="${uri_obfs%%#*}"
+
+  [[ "$uri_auth" =~ ^[A-Za-z0-9_-]+$ ]]
+  [[ "$uri_obfs" =~ ^[A-Za-z0-9_-]+$ ]]
+  ! grep -Eq '^password=.*[+/=]' "$file"
 }
 
 @test "Hysteria2 ACME client export does not enable insecure verification" {
@@ -74,6 +101,10 @@ setup() {
 
   grep -q 'insecure: false' "$REPO_ROOT/tests/tmp/render/hysteria-client.yaml"
   ! grep -q 'insecure=1' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q 'sni=hy2.example.com' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q '"type":"hysteria2"' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  grep -q '"tls":{"enabled":true,"server_name":"hy2.example.com"}' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
+  ! grep -q '"insecure":true' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
   ! grep -q 'self-signed mode' "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt"
 }
 

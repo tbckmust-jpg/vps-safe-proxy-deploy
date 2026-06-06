@@ -207,6 +207,10 @@ XHTTP 默认由 Caddy 对外提供 HTTPS 网站。只有随机路径会反代到
 
 提供 `HY2_DOMAIN` 和 `EMAIL` 时会生成 ACME 模式配置，客户端不需要 insecure。没有 `HY2_DOMAIN` 或没有 `EMAIL` 时会使用自签证书，伪装完整度会下降；客户端 yaml 会包含 `tls.insecure: true`，URI 也会带 insecure 参数。自签模式下客户端必须允许跳过证书校验。
 
+Hysteria2 的新生成密码和 Salamander obfs password 使用 URL-safe 字符集，避免 `+`、`/`、`=` 这类字符在 URI 导入链路中被客户端误解析。credentials 会同时提供 Hysteria2 URI、`hysteria-client.yaml` 路径、sing-box outbound JSON 和 v2rayN 导入提示。
+
+如果 v2rayN 导入 Hysteria2 URI 后提示“运行 Core 失败”，优先切换到 sing-box core，或改用 credentials 中的 sing-box outbound / `hysteria-client.yaml`。HY2 依赖 UDP `8443`，服务商防火墙、系统防火墙和 NAT 端口映射都必须允许 UDP；Reality 和 XHTTP 能连通并不代表 UDP `8443` 一定可用。
+
 Hysteria2 默认使用 UDP `8443`。脚本会提示 UDP 可用性无法完全本地确认，不会假装 UDP 一定可用。
 
 ## 来源

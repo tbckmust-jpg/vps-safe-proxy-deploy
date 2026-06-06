@@ -134,8 +134,8 @@ install_hy2_stealth() {
 	ensure_no_port_conflicts
 	prepare_runtime_dirs
 
-	HY2_PASSWORD="${HY2_PASSWORD:-$(random_password)}"
-	HY2_OBFS_PASSWORD="${HY2_OBFS_PASSWORD:-$(random_password)}"
+	HY2_PASSWORD="${HY2_PASSWORD:-$(random_urlsafe_secret 32)}"
+	HY2_OBFS_PASSWORD="${HY2_OBFS_PASSWORD:-$(random_urlsafe_secret 32)}"
 	HY2_CLIENT_PORT="$(effective_export_port "$HY2_PORT" "$HY2_EXTERNAL_PORT")"
 
 	if is_true "${NAT_MODE:-false}" && ! is_true "${HY2_UDP_MAPPED:-false}"; then

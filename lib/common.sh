@@ -331,6 +331,12 @@ random_password() {
 	fi
 }
 
+random_urlsafe_secret() {
+	local bytes="${1:-32}"
+
+	random_hex "$bytes"
+}
+
 url_encode() {
 	local value="$1"
 	local encoded char hex i

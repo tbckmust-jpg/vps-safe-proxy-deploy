@@ -27,19 +27,22 @@ write_reality_client_exports() {
 }
 
 write_hy2_client_exports() {
-	local export_port scheme client_file encoded_password encoded_obfs insecure_param
+	local export_port scheme client_file encoded_password encoded_obfs encoded_sni insecure_param tls_json
 	export_port="${HY2_CLIENT_PORT:-$(effective_export_port "$HY2_PORT" "$HY2_EXTERNAL_PORT")}"
 	scheme="hysteria2"
 	client_file="$HY2_CLIENT_CONFIG_FILE"
 	encoded_password="$(url_encode "$HY2_PASSWORD")"
 	encoded_obfs="$(url_encode "$HY2_OBFS_PASSWORD")"
+	encoded_sni="$(url_encode "$HY2_DOMAIN")"
 	insecure_param=""
 
 	if [[ "${HY2_TLS_MODE:-}" == "self-signed" ]]; then
 		HY2_TLS_INSECURE=true
 		insecure_param="&insecure=1"
+		tls_json="\"tls\":{\"enabled\":true,\"server_name\":\"${HY2_DOMAIN}\",\"insecure\":true}"
 	else
 		HY2_TLS_INSECURE=false
+		tls_json="\"tls\":{\"enabled\":true,\"server_name\":\"${HY2_DOMAIN}\"}"
 	fi
 	export HY2_TLS_INSECURE
 
@@ -50,10 +53,12 @@ write_hy2_client_exports() {
 	append_credential '[hysteria2]'
 	append_credential "password=${HY2_PASSWORD}"
 	append_credential "client_yaml=${client_file}"
+	append_credential "v2rayN_hint=If URI import fails, use sing-box core or import the client yaml / sing-box outbound."
 	if [[ "${HY2_TLS_MODE:-}" == "self-signed" ]]; then
 		append_credential "note=self-signed mode, client must allow insecure certificate verification"
 	fi
-	append_credential "uri=${scheme}://${encoded_password}@${PUBLIC_HOST}:${export_port}/?obfs=salamander&obfs-password=${encoded_obfs}${insecure_param}#Hysteria2-Stealth"
+	append_credential "uri=${scheme}://${encoded_password}@${PUBLIC_HOST}:${export_port}/?sni=${encoded_sni}&obfs=salamander&obfs-password=${encoded_obfs}${insecure_param}#Hysteria2-Stealth"
+	append_credential "sing_box_outbound={\"type\":\"hysteria2\",\"tag\":\"hysteria2-stealth\",\"server\":\"${PUBLIC_HOST}\",\"server_port\":${export_port},\"password\":\"${HY2_PASSWORD}\",${tls_json},\"obfs\":{\"type\":\"salamander\",\"password\":\"${HY2_OBFS_PASSWORD}\"}}"
 }
 
 write_xhttp_client_exports() {
