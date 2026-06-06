@@ -35,6 +35,18 @@ assert_full_candidate() {
   assert_full_candidate apt
 }
 
+@test "detect reports Debian 12 apt systemd root as full install candidate" {
+  run_candidate_detect os-release-debian12 apt
+  [[ "$output" == *"OS: Debian GNU/Linux 12 (bookworm)"* ]]
+  assert_full_candidate apt
+}
+
+@test "detect reports Ubuntu 22.04 apt systemd root as full install candidate" {
+  run_candidate_detect os-release-ubuntu2204 apt
+  [[ "$output" == *"OS: Ubuntu 22.04.5 LTS"* ]]
+  assert_full_candidate apt
+}
+
 @test "detect reports Ubuntu 24.04 apt systemd root as full install candidate" {
   run_candidate_detect os-release-ubuntu2404 apt
   [[ "$output" == *"OS: Ubuntu 24.04 LTS"* ]]
@@ -59,6 +71,12 @@ assert_full_candidate() {
   assert_full_candidate dnf
 }
 
+@test "detect reports RHEL dnf systemd root as full install candidate" {
+  run_candidate_detect os-release-rhel dnf
+  [[ "$output" == *"OS: Red Hat Enterprise Linux 9.4 (Plow)"* ]]
+  assert_full_candidate dnf
+}
+
 @test "detect reports CentOS yum systemd root as full install candidate" {
   run_candidate_detect os-release-centos yum
   [[ "$output" == *"OS: CentOS Stream 9"* ]]
@@ -79,10 +97,11 @@ assert_full_candidate() {
 
 @test "detect reports Alpine OpenRC as dry-run only" {
   run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-alpine" \
-    DETECT_INIT_SYSTEM=openrc DETECT_IS_ROOT=true DETECT_VIRT=LXC DETECT_ARCH=x86_64 DETECT_PACKAGE_MANAGER=unknown DETECT_BBR_AVAILABLE=true \
+    DETECT_INIT_SYSTEM=openrc DETECT_IS_ROOT=true DETECT_VIRT=LXC DETECT_ARCH=x86_64 DETECT_PACKAGE_MANAGER=apk DETECT_BBR_AVAILABLE=true \
     bash "$REPO_ROOT/install.sh" detect --test-mode
   [ "$status" -eq 0 ]
   [[ "$output" == *"OS: Alpine Linux v3.23"* ]]
+  [[ "$output" == *"Package manager: apk"* ]]
   [[ "$output" == *"Init system: openrc"* ]]
   [[ "$output" == *"Support level: dry-run only"* ]]
   [[ "$output" == *"Reality Vision: dry-run only"* ]]
@@ -91,6 +110,18 @@ assert_full_candidate() {
   [[ "$output" == *"BBR: kernel supports bbr; applying may be unavailable in container"* ]]
   [[ "$output" == *"BBR: kernel supports bbr; apply permission unknown in container"* ]]
   [[ "$output" != *"BBR: supported"* ]]
+  [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
+}
+
+@test "detect reports arm64 systemd VPS as full install candidate" {
+  run env -i PATH="$PATH" OS_RELEASE_FILE="$REPO_ROOT/tests/fixtures/os-release-debian13" \
+    DETECT_INIT_SYSTEM=systemd DETECT_IS_ROOT=true DETECT_VIRT=KVM DETECT_ARCH=aarch64 DETECT_PACKAGE_MANAGER=apt \
+    DETECT_BBR_AVAILABLE=true DETECT_TCP_443_STATUS=free DETECT_TCP_2053_STATUS=free \
+    bash "$REPO_ROOT/install.sh" detect --test-mode
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Architecture: aarch64"* ]]
+  [[ "$output" == *"Support level: full install candidate"* ]]
+  [[ "$output" == *"Reality Vision: full install candidate"* ]]
   [ ! -e "$REPO_ROOT/tests/tmp/root/vps-oneclick/credentials.txt" ]
 }
 

@@ -78,7 +78,7 @@ platform_detect_arch() {
 
 platform_arch_supported() {
 	case "${ARCH:-unknown}" in
-	x86_64 | amd64) return 0 ;;
+	x86_64 | amd64 | aarch64 | arm64) return 0 ;;
 	*) return 1 ;;
 	esac
 }
@@ -229,6 +229,8 @@ platform_detect_package_manager() {
 		PACKAGE_MANAGER="pacman"
 	elif command -v zypper >/dev/null 2>&1; then
 		PACKAGE_MANAGER="zypper"
+	elif command -v apk >/dev/null 2>&1; then
+		PACKAGE_MANAGER="apk"
 	else
 		PACKAGE_MANAGER="unknown"
 	fi

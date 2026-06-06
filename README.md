@@ -298,3 +298,60 @@ Logs include stage start/success/failure and the final summary. They must not in
 When `HY2_DOMAIN` is empty, Hysteria2 uses self-signed certificate mode and camouflage completeness is lower. OpenSSL certificate generation progress is suppressed from terminal output; failures are reported with a short safe error.
 
 On Debian/Ubuntu package installs, Caddy uses `/etc/caddy/Caddyfile`. The installer writes, validates, backs up, and restarts Caddy against that same path. XHTTP/Caddy is marked installed only after Caddy validates, restarts, reports active, listens on `XHTTP_HTTPS_PORT`, and Xray listens on `127.0.0.1:XHTTP_INTERNAL_PORT`.
+
+## Release guidance and support matrix
+
+Recommended stable Debian 13 KVM command:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/v0.5.3-debian13-kvm-hy2-v2rayn-fix/bootstrap.sh) all
+```
+
+Cross-platform candidate command, after `v0.6.0-cross-platform-candidate` is published:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tbckmust-jpg/vps-safe-proxy-deploy/v0.6.0-cross-platform-candidate/bootstrap.sh) all
+```
+
+`main` is for development and regression testing. For normal reuse, prefer a tag.
+
+Support levels:
+
+| Platform | Level |
+| --- | --- |
+| Debian 13 KVM x86_64 systemd | verified |
+| Debian 11/12/13, Ubuntu 20.04/22.04/24.04 with systemd | candidate |
+| Fedora, Rocky, AlmaLinux, RHEL, CentOS Stream with systemd | candidate |
+| Arch Linux with systemd | candidate |
+| openSUSE with systemd | candidate |
+| arm64/aarch64 systemd VPS | candidate |
+| Alpine/OpenRC | detect and dry-run only |
+| LXC/Docker/container | limited candidate; BBR/firewall/network may be restricted |
+| NAT VPS | candidate with explicit external ports; HY2 requires UDP mapping |
+| unknown init or unknown package manager | unsupported for real install |
+
+`verified` means this repository has completed a real installation regression on that platform. `candidate` means the platform adapter, package manager, and test-mode fixture pass CI, but real provider behavior still needs feedback. The script should detect limits, warn, skip, or exit safely instead of pretending success.
+
+Useful commands:
+
+```bash
+./install.sh detect
+./install.sh all
+./install.sh status
+./install.sh uninstall
+```
+
+Production credentials are written to `/root/vps-oneclick/credentials.txt`. Do not publish this file. If it leaks, rerun `all`; the installer backs up the old credentials and regenerates a fresh file.
+
+HY2 notes for v2rayN:
+
+- HY2 needs UDP 8443 to be reachable.
+- No-domain self-signed mode needs insecure verification or certificate pinning.
+- Recent Xray cores removed the old `allowInsecure` field; use `v2rayN_xray_uri` from credentials, or use sing-box core / sing-box outbound / `hysteria-client.yaml`.
+- Reality and XHTTP passing only proves TCP works; it does not prove UDP 8443 works.
+
+XHTTP notes:
+
+- No-domain mode is a downgrade mode and exports non-TLS XHTTP.
+- With no `XHTTP_DOMAIN`, v2rayN should use `security=none`.
+- Full TLS camouflage requires a real `XHTTP_DOMAIN`.
